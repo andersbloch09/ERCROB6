@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: ""
+    relative_path: /home/bloch/Desktop/ur3e.xacro
+    xacro_args: ""
+  SRDF:
+    relative_path: config/ur3e_robot.srdf
+  CONFIG:
+    author_name: anders
+    author_email: andersbloch09@gmail.com
+    generated_timestamp: 1711012950

@@ -1,0 +1,2 @@
+newur:ur3e_config_made:ur_control
+-DCATKIN_DEVEL_PREFIX=/home/bloch/ws_ur/devel -DCMAKE_INSTALL_PREFIX=/home/bloch/ws_ur/install -G Unix Makefiles
