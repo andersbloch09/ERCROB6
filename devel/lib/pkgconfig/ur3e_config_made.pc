@@ -1,8 +1,0 @@
-prefix=/home/bloch/ws_ur/devel
-
-Name: ur3e_config_made
-Description: Description of ur3e_config_made
-Version: 0.3.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 
