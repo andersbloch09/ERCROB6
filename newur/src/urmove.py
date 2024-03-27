@@ -382,11 +382,11 @@ class MoveGroupPythonInterface(object):
         ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         ## First, we will create a box in the planning scene between the fingers:
         box_pose = geometry_msgs.msg.PoseStamped()
-        box_pose.header.frame_id = "manipulator"
-        box_pose.pose.orientation.w = 1.0
-        box_pose.pose.position.z = 0.11  # above the panda_hand frame
+        box_pose.header.frame_id = "base"
+        box_pose.pose.orientation.w = 0
+        box_pose.pose.position.z = 0  # above the panda_hand frame
         box_name = "box"
-        scene.add_box(box_name, box_pose, size=(0.075, 0.075, 0.075))
+        scene.add_box(box_name, box_pose, size=(1, 1, 0.01))
 
         ## END_SUB_TUTORIAL
         # Copy local variables back to class variables. In practice, you should use the class
@@ -484,24 +484,27 @@ def main():
         input(
             "============ Press `Enter` to execute a movement using a joint state goal ..."
         )
+        move_node.add_box()
         move_node.go_to_joint_state()
 
-        input("============ Press `Enter` to execute a movement using a pose goal ...")
+        #input("============ Press `Enter` to execute a movement using a pose goal ...")
         move_node.go_to_pose_goal()
 
-        input("============ Press `Enter` to plan and display a Cartesian path ...")
+        #input("============ Press `Enter` to plan and display a Cartesian path ...")
         cartesian_plan, fraction = move_node.plan_cartesian_path()
 
-        input(
-            "============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ..."
-        )
+        #input(
+        #   "============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ..."
+        #)
         move_node.display_trajectory(cartesian_plan)
 
-        input("============ Press `Enter` to execute a saved path ...")
+        #input("============ Press `Enter` to execute a saved path ...")
         move_node.execute_plan(cartesian_plan)
 
         input("============ Press `Enter` to add a box to the planning scene ...")
         move_node.add_box()
+
+        move_node.go_to_joint_state()
 
         input("============ Press `Enter` to attach a Box to the Panda robot ...")
         move_node.attach_box()
