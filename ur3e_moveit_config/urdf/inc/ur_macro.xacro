@@ -51,8 +51,8 @@
      - Muhammad Asif Rana
   -->
 
-  <xacro:include filename="$(find ur_description)/urdf/inc/ur_transmissions.xacro" />
-  <xacro:include filename="$(find ur_description)/urdf/inc/ur_common.xacro" />
+  <xacro:include filename="$(find ur3e_moveit_config)/urdf/inc/ur_transmissions.xacro" />
+  <xacro:include filename="$(find ur3e_moveit_config)/urdf/inc/ur_common.xacro" />
 
   <xacro:macro name="ur_robot" params="
     prefix
@@ -333,28 +333,26 @@
       <parent link="${prefix}flange"/>
       <child link="${prefix}tool0"/>
     </joint>
-    <!-- Define the end effector link -->
     <link name="end_effector_link">
       <visual>
-        <!-- Define visual properties (e.g., geometry, color) -->
+        <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <box size="0.05 0.05 0.05"/> <!-- Example: a small cube -->
+          <mesh filename="package://ur3e_moveit_config/meshes/ur3e/collision/gripper_stl.stl"/> <!-- Replace path/to/end_effector.stl with the actual path -->
         </geometry>
         <material name="end_effector_material">
           <color rgba="0.5 0.5 0.5 1"/> <!-- Example: light gray color -->
         </material>
       </visual>
       <collision>
-        <!-- Define collision properties (e.g., simplified geometry) -->
+        <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <box size="0.05 0.05 0.05"/> <!-- Example: same size as visual -->
+          <mesh filename="package://ur3e_moveit_config/meshes/ur3e/collision/gripper_stl.stl"/> <!-- Same mesh file used for collision -->
         </geometry>
       </collision>
-      <!-- Define inertia properties (e.g., mass, moments of inertia) -->
       <inertial>
-        <mass value="0.1"/> <!-- Example: mass of 0.1 kg -->
+        <mass value="0.5"/> <!-- Example: mass of 1.0 kg -->
         <!-- Define the inertia matrix -->
-        <inertia ixx="0.001" iyy="0.001" izz="0.001" ixy="0" ixz="0" iyz="0"/>
+        <inertia ixx="0.1" iyy="0.1" izz="0.1" ixy="0" ixz="0" iyz="0"/>
       </inertial>
     </link>
 
