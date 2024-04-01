@@ -7,6 +7,8 @@ import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
 import numpy as np
+import transforms3d.quaternions as quaternions
+import transforms3d.euler as euler
 
 from math import pi, tau, dist, fabs, cos
 
@@ -43,6 +45,24 @@ def all_close(goal, actual, tolerance):
         return d <= tolerance and cos_phi_half >= cos(tolerance / 2.0)
 
     return True
+
+def euler_to_quaternion(pose):
+    """
+    Convert Euler angles (roll, pitch, yaw) to quaternion.
+
+    Parameters:
+        roll (float): Rotation around the x-axis in radians.
+        pitch (float): Rotation around the y-axis in radians.
+        yaw (float): Rotation around the z-axis in radians.
+
+    Returns:
+        numpy.ndarray: Quaternion [x, y, z, w].
+    """
+    roll, pitch, yaw = pose[3], pose[4], pose[5]
+    # Convert Euler angles to quaternion
+    quaternion = euler.euler2quat(roll, pitch, yaw)
+
+    return quaternion
 
 
 class MoveGroupPythonInterface(object):
@@ -116,8 +136,6 @@ class MoveGroupPythonInterface(object):
         # reason not to.
         move_group = self.move_group
 
-        ## BEGIN_SUB_TUTORIAL plan_to_joint_state
-        ##
         ## Planning to a Joint Goal
         ## ^^^^^^^^^^^^^^^^^^^^^^^^
         ## The Panda's zero configuration is at a `singularity <https://www.quora.com/Robotics-What-is-meant-by-kinematic-singularity>`_, so the first
@@ -125,12 +143,14 @@ class MoveGroupPythonInterface(object):
         ## We use the constant `tau = 2*pi <https://en.wikipedia.org/wiki/Turn_(angle)#Tau_proposals>`_ for convenience:
         # We get the joint values from the group and change some of the values:
         joint_goal = move_group.get_current_joint_values()
-        joint_goal[0] = 0
-        joint_goal[1] = np.radians(-90)
-        joint_goal[2] = 0
-        joint_goal[3] = np.radians(-90)
-        joint_goal[4] = 0
-        joint_goal[5] = 0  # 1/6 of a turn
+        homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
+                  3.189222975368164, -0.6959036032306116, -9.445799001047405]
+        joint_goal[0] = homeJoints[0]
+        joint_goal[1] = homeJoints[1]
+        joint_goal[2] = homeJoints[2]
+        joint_goal[3] = homeJoints[3]
+        joint_goal[4] = homeJoints[4]
+        joint_goal[5] = homeJoints[5]
 
         # The go command can be called with joint values, poses, or without any
         # parameters if you have already set the pose or joint target for the group
@@ -139,29 +159,32 @@ class MoveGroupPythonInterface(object):
         # Calling ``stop()`` ensures that there is no residual movement
         move_group.stop()
 
-        ## END_SUB_TUTORIAL
 
         # For testing:
         current_joints = move_group.get_current_joint_values()
         return all_close(joint_goal, current_joints, 0.01)
 
-    def go_to_pose_goal(self):
+    def go_to_pose_goal(self, pos):
         # Copy class variables to local variables to make the web tutorials more clear.
         # In practice, you should use the class variables directly unless you have a good
         # reason not to.
         move_group = self.move_group
+        pos_quaternion = euler_to_quaternion(pos)
 
-        ## BEGIN_SUB_TUTORIAL plan_to_pose
-        ##
         ## Planning to a Pose Goal
         ## ^^^^^^^^^^^^^^^^^^^^^^^
         ## We can plan a motion for this group to a desired pose for the
         ## end-effector:
+        print("POSE!!!", pos)
         pose_goal = geometry_msgs.msg.Pose()
-        pose_goal.orientation.w = 1.0
-        pose_goal.position.x = 0.4
-        pose_goal.position.y = 0.1
-        pose_goal.position.z = 0.4
+        pose_goal.orientation.x = pos_quaternion[0]
+        pose_goal.orientation.y = pos_quaternion[1]
+        pose_goal.orientation.z = pos_quaternion[2]
+        pose_goal.orientation.w = pos_quaternion[3]
+    
+        pose_goal.position.x = pos[0]
+        pose_goal.position.y = pos[1]
+        pose_goal.position.z = pos[2]
 
         move_group.set_pose_target(pose_goal)
 
@@ -174,7 +197,6 @@ class MoveGroupPythonInterface(object):
         # Note: there is no equivalent function for clear_joint_value_targets().
         move_group.clear_pose_targets()
 
-        ## END_SUB_TUTORIAL
 
         # For testing:
         # Note that since this section of code will not be included in the tutorials
@@ -188,8 +210,6 @@ class MoveGroupPythonInterface(object):
         # reason not to.
         move_group = self.move_group
 
-        ## BEGIN_SUB_TUTORIAL plan_cartesian_path
-        ##
         ## Cartesian Paths
         ## ^^^^^^^^^^^^^^^
         ## You can plan a Cartesian path directly by specifying a list of waypoints
@@ -221,7 +241,6 @@ class MoveGroupPythonInterface(object):
         # Note: We are just planning, not asking move_group to actually move the robot yet:
         return plan, fraction
 
-        ## END_SUB_TUTORIAL
 
     def display_trajectory(self, plan):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -230,8 +249,6 @@ class MoveGroupPythonInterface(object):
         robot = self.robot
         display_trajectory_publisher = self.display_trajectory_publisher
 
-        ## BEGIN_SUB_TUTORIAL display_trajectory
-        ##
         ## Displaying a Trajectory
         ## ^^^^^^^^^^^^^^^^^^^^^^^
         ## You can ask RViz to visualize a plan (aka trajectory) for you. But the
@@ -247,7 +264,6 @@ class MoveGroupPythonInterface(object):
         # Publish
         display_trajectory_publisher.publish(display_trajectory)
 
-        ## END_SUB_TUTORIAL
 
     def execute_plan(self, plan):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -255,8 +271,6 @@ class MoveGroupPythonInterface(object):
         # reason not to.
         move_group = self.move_group
 
-        ## BEGIN_SUB_TUTORIAL execute_plan
-        ##
         ## Executing a Plan
         ## ^^^^^^^^^^^^^^^^
         ## Use execute if you would like the robot to follow
@@ -265,7 +279,6 @@ class MoveGroupPythonInterface(object):
 
         ## **Note:** The robot's current joint state must be within some tolerance of the
         ## first waypoint in the `RobotTrajectory`_ or ``execute()`` will fail
-        ## END_SUB_TUTORIAL
 
     def wait_for_state_update(
         self, box_is_known=False, box_is_attached=False, timeout=4
@@ -276,7 +289,7 @@ class MoveGroupPythonInterface(object):
         box_name = self.box_name
         scene = self.scene
 
-        ## BEGIN_SUB_TUTORIAL wait_for_scene_update
+        ## wait_for_scene_update
         ##
         ## Ensuring Collision Updates Are Received
         ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -311,7 +324,6 @@ class MoveGroupPythonInterface(object):
 
         # If we exited the while loop without returning then we timed out
         return False
-        ## END_SUB_TUTORIAL
 
     def add_box(self, timeout=4):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -320,8 +332,6 @@ class MoveGroupPythonInterface(object):
         box_name = self.box_name
         scene = self.scene
 
-        ## BEGIN_SUB_TUTORIAL add_box
-        ##
         ## Adding Objects to the Planning Scene
         ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         ## First, we will create a box in the planning scene between the fingers:
@@ -330,9 +340,8 @@ class MoveGroupPythonInterface(object):
         box_pose.pose.orientation.w = 0
         box_pose.pose.position.z = 0  # above the panda_hand frame
         box_name = "box"
-        scene.add_box(box_name, box_pose, size=(1, 1, 0.01))
+        scene.add_box(box_name, box_pose, size=(2, 2, 0.01))
 
-        ## END_SUB_TUTORIAL
         # Copy local variables back to class variables. In practice, you should use the class
         # variables directly unless you have a good reason not to.
         self.box_name = box_name
@@ -348,8 +357,6 @@ class MoveGroupPythonInterface(object):
         eef_link = self.eef_link
         group_names = self.group_names
 
-        ## BEGIN_SUB_TUTORIAL attach_object
-        ##
         ## Attaching Objects to the Robot
         ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         ## Next, we will attach the box to the Panda wrist. Manipulating objects requires the
@@ -361,7 +368,6 @@ class MoveGroupPythonInterface(object):
         grasping_group = "manipulator"
         touch_links = robot.get_link_names(group=grasping_group)
         scene.attach_box(eef_link, box_name, touch_links=touch_links)
-        ## END_SUB_TUTORIAL
 
         # We wait for the planning scene to update.
         return self.wait_for_state_update(
@@ -376,13 +382,10 @@ class MoveGroupPythonInterface(object):
         scene = self.scene
         eef_link = self.eef_link
 
-        ## BEGIN_SUB_TUTORIAL detach_object
-        ##
         ## Detaching Objects from the Robot
         ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         ## We can also detach and remove the object from the planning scene:
         scene.remove_attached_object(eef_link, name=box_name)
-        ## END_SUB_TUTORIAL
 
         # We wait for the planning scene to update.
         return self.wait_for_state_update(
@@ -396,15 +399,12 @@ class MoveGroupPythonInterface(object):
         box_name = self.box_name
         scene = self.scene
 
-        ## BEGIN_SUB_TUTORIAL remove_object
-        ##
         ## Removing Objects from the Planning Scene
         ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         ## We can remove the box from the world.
         scene.remove_world_object(box_name)
 
         ## **Note:** The object must be detached before we can remove it from the world
-        ## END_SUB_TUTORIAL
 
         # We wait for the planning scene to update.
         return self.wait_for_state_update(
@@ -414,15 +414,6 @@ class MoveGroupPythonInterface(object):
 
 def main():
     try:
-        print("")
-        print("----------------------------------------------------------")
-        print("Welcome to the MoveIt MoveGroup Python Interface Tutorial")
-        print("----------------------------------------------------------")
-        print("Press Ctrl-D to exit at any time")
-        print("")
-        input(
-            "============ Press `Enter` to begin the tutorial by setting up the moveit_commander ..."
-        )
         move_node = MoveGroupPythonInterface()
 
         input(
@@ -431,8 +422,11 @@ def main():
         move_node.add_box()
         move_node.go_to_joint_state()
 
+        home = [0.34, 0.34, 0.285,
+             np.deg2rad(-84), np.deg2rad(35), np.deg2rad(-35)]
+
         #input("============ Press `Enter` to execute a movement using a pose goal ...")
-        move_node.go_to_pose_goal()
+        move_node.go_to_pose_goal(home)
 
         #input("============ Press `Enter` to plan and display a Cartesian path ...")
         cartesian_plan, fraction = move_node.plan_cartesian_path()
@@ -442,42 +436,18 @@ def main():
         #)
         move_node.display_trajectory(cartesian_plan)
 
-        #input("============ Press `Enter` to execute a saved path ...")
+        input("============ Press `Enter` to execute a saved path ...")
         move_node.execute_plan(cartesian_plan)
 
-        input("============ Press `Enter` to add a box to the planning scene ...")
-        move_node.add_box()
-
-        move_node.go_to_joint_state()
-
-        input("============ Press `Enter` to attach a Box to the Panda robot ...")
-        move_node.attach_box()
-
-        input(
-            "============ Press `Enter` to plan and execute a path with an attached collision object ..."
-        )
-        cartesian_plan, fraction = move_node.plan_cartesian_path(scale=-1)
-        move_node.execute_plan(cartesian_plan)
-
-        input("============ Press `Enter` to detach the box from the Panda robot ...")
-        move_node.detach_box()
-
-        input(
-            "============ Press `Enter` to remove the box from the planning scene ..."
-        )
-        move_node.remove_box()
-
-        print("============ Python tutorial demo complete!")
+        print("Program is done")
     except rospy.ROSInterruptException:
         return
     except KeyboardInterrupt:
         return
 
-
 if __name__ == "__main__":
     main()
 
-## BEGIN_TUTORIAL
 ## .. _moveit_commander:
 ##    http://docs.ros.org/noetic/api/moveit_commander/html/namespacemoveit__commander.html
 ##
@@ -498,17 +468,16 @@ if __name__ == "__main__":
 ##
 ## .. _rospy:
 ##    http://docs.ros.org/noetic/api/rospy/html/
-## CALL_SUB_TUTORIAL imports
-## CALL_SUB_TUTORIAL setup
-## CALL_SUB_TUTORIAL basic_info
-## CALL_SUB_TUTORIAL plan_to_joint_state
-## CALL_SUB_TUTORIAL plan_to_pose
-## CALL_SUB_TUTORIAL plan_cartesian_path
-## CALL_SUB_TUTORIAL display_trajectory
-## CALL_SUB_TUTORIAL execute_plan
-## CALL_SUB_TUTORIAL add_box
-## CALL_SUB_TUTORIAL wait_for_scene_update
-## CALL_SUB_TUTORIAL attach_object
-## CALL_SUB_TUTORIAL detach_object
-## CALL_SUB_TUTORIAL remove_object
-## END_TUTORIAL
+## imports
+## setup
+## basic_info
+## plan_to_joint_state
+## plan_to_pose
+## plan_cartesian_path
+## display_trajectory
+## execute_plan
+## add_box
+## wait_for_scene_update
+## attach_object
+## detach_object
+## remove_object
