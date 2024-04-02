@@ -335,7 +335,7 @@
     </joint>
     <link name="end_effector_link">
       <visual>
-        <origin xyz="-0.079 0.032 0.0738" rpy="0 -3.141592653589793 3.141592653589793"/>
+        <origin xyz="-0.079 0.032 -0.0462" rpy="0 -3.141592653589793 3.141592653589793"/>
         <geometry>
           <mesh filename="package://ur3e_moveit_config/meshes/ur3e/collision/gripper.stl"/> <!-- Replace path/to/end_effector.stl with the actual path -->
         </geometry>
@@ -344,7 +344,7 @@
         </material>
       </visual>
       <collision>
-        <origin xyz="-0.079 0.032 0.0738" rpy="0 -3.141592653589793 3.141592653589793"/>
+        <origin xyz="-0.079 0.032 -0.0462" rpy="0 -3.141592653589793 3.141592653589793"/>
         <geometry>
           <mesh filename="package://ur3e_moveit_config/meshes/ur3e/collision/gripper.stl"/> <!-- Same mesh file used for collision -->
         </geometry>
@@ -361,7 +361,7 @@
       <parent link="tool0"/> <!-- Adjust link name accordingly -->
       <child link="end_effector_link"/>
       <!-- Define the transformation from the last link to the end effector -->
-      <origin xyz="0 0 0.1" rpy="0 0 0"/> <!-- Example: 0.1 meter offset in the z-axis -->
+      <origin xyz="0 0 0.22" rpy="0 0 0"/> <!-- Example: 0.1 meter offset in the z-axis -->
     </joint>
 
   </xacro:macro>

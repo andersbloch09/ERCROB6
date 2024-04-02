@@ -10,7 +10,7 @@ import numpy as np
 import transforms3d.quaternions as quaternions
 import transforms3d.euler as euler
 
-from math import pi, tau, dist, fabs, cos
+from math import pi, tau, dist, fabs, cos, atan2, asin
 
 
 from std_msgs.msg import String
@@ -59,9 +59,10 @@ def euler_to_quaternion(pose):
         numpy.ndarray: Quaternion [x, y, z, w].
     """
     roll, pitch, yaw = pose[3], pose[4], pose[5]
+    #roll, pitch, yaw = 0, 0, 0
     # Convert Euler angles to quaternion
     quaternion = euler.euler2quat(roll, pitch, yaw)
-
+    print(quaternion)
     return quaternion
 
 
@@ -144,7 +145,7 @@ class MoveGroupPythonInterface(object):
         # We get the joint values from the group and change some of the values:
         joint_goal = move_group.get_current_joint_values()
         homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
-                  3.189222975368164, -0.6959036032306116, -9.445799001047405]
+                  3.189222975368164, -0.6959036032306116, -3.1415]
         joint_goal[0] = homeJoints[0]
         joint_goal[1] = homeJoints[1]
         joint_goal[2] = homeJoints[2]
@@ -164,6 +165,24 @@ class MoveGroupPythonInterface(object):
         current_joints = move_group.get_current_joint_values()
         return all_close(joint_goal, current_joints, 0.01)
 
+   
+
+    def quaternion_to_euler(self, q):
+        qx = q.x
+        qy = q.y
+        qz = q.z
+        qw = q.w
+
+        # Yaw (psi), Pitch (theta), Roll (phi)
+        yaw = atan2(2*(qw*qz + qx*qy), 1 - 2*(qy**2 + qz**2))
+        pitch = asin(2*(qw*qy - qx*qz))
+        roll = atan2(2*(qw*qx + qy*qz), 1 - 2*(qx**2 + qy**2))
+
+        return yaw, pitch, roll
+
+   
+
+
     def go_to_pose_goal(self, pos):
         # Copy class variables to local variables to make the web tutorials more clear.
         # In practice, you should use the class variables directly unless you have a good
@@ -175,12 +194,25 @@ class MoveGroupPythonInterface(object):
         ## ^^^^^^^^^^^^^^^^^^^^^^^
         ## We can plan a motion for this group to a desired pose for the
         ## end-effector:
-        print("POSE!!!", pos)
+
+        # Example usage
+        quaternion_new = self.move_group.get_current_pose()   
+        quaternion = quaternion_new.pose.orientation
+        #print("new print", quaternion)
+
+        yaw, pitch, roll = self.quaternion_to_euler(quaternion)
+        #print("Yaw:", yaw, "Pitch:", pitch, "Roll:", roll)
+
+   
+
+        #print("GOAL POSE!!!", pos)
+        print("QUATONIONS POSE!!", pos_quaternion)
+        print("Current POSE!!!", self.move_group.get_current_pose())
         pose_goal = geometry_msgs.msg.Pose()
-        pose_goal.orientation.x = pos_quaternion[0]
-        pose_goal.orientation.y = pos_quaternion[1]
-        pose_goal.orientation.z = pos_quaternion[2]
-        pose_goal.orientation.w = pos_quaternion[3]
+        pose_goal.orientation.x = pos_quaternion[1]
+        pose_goal.orientation.y = pos_quaternion[2]
+        pose_goal.orientation.z = pos_quaternion[3]
+        pose_goal.orientation.w = pos_quaternion[0]
     
         pose_goal.position.x = pos[0]
         pose_goal.position.y = pos[1]
@@ -422,8 +454,8 @@ def main():
         move_node.add_box()
         move_node.go_to_joint_state()
 
-        home = [0.34, 0.34, 0.285,
-             np.deg2rad(-84), np.deg2rad(35), np.deg2rad(-35)]
+        home = [-0.34, -0.34, 0.285,
+             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
 
         #input("============ Press `Enter` to execute a movement using a pose goal ...")
         move_node.go_to_pose_goal(home)
