@@ -9,7 +9,7 @@ import geometry_msgs.msg
 import numpy as np
 import transforms3d.quaternions as quaternions
 import transforms3d.euler as euler
-
+import tf2_ros
 from math import pi, tau, dist, fabs, cos, atan2, asin
 
 
@@ -455,7 +455,7 @@ def main():
         move_node.go_to_joint_state()
 
         home = [-0.34, -0.34, 0.285,
-             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
+             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(125)]
 
         #input("============ Press `Enter` to execute a movement using a pose goal ...")
         move_node.go_to_pose_goal(home)
