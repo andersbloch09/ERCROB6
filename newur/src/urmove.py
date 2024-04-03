@@ -458,15 +458,14 @@ def main():
         home = [-0.34, -0.34, 0.387,
              np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
         input("============ Press `Enter` to vi prøver ...")
-        #input("============ Press `Enter` to execute a movement using a pose goal ...")
         move_node.go_to_pose_goal(home)
 
-        #input("============ Press `Enter` to plan and display a Cartesian path ...")
+        input("============ Press `Enter` to plan and display a Cartesian path ...")
         cartesian_plan, fraction = move_node.plan_cartesian_path()
 
-        #input(
-        #   "============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ..."
-        #)
+        input(
+           "============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ..."
+        )
         move_node.display_trajectory(cartesian_plan)
 
         input("============ Press `Enter` to execute a saved path ...")

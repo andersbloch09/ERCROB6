@@ -12,6 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning_interface
   rospy
   geometry_msgs
+  tf2_ros
+  tf_conversions
 )
 
 ## System dependencies are found with CMake's conventions
