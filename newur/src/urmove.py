@@ -10,6 +10,7 @@ import numpy as np
 import transforms3d.quaternions as quaternions
 import transforms3d.euler as euler
 import tf2_ros
+import tf_conversions
 from math import pi, tau, dist, fabs, cos, atan2, asin
 
 
@@ -199,7 +200,7 @@ class MoveGroupPythonInterface(object):
         quaternion_new = self.move_group.get_current_pose()   
         quaternion = quaternion_new.pose.orientation
         #print("new print", quaternion)
-
+        
         yaw, pitch, roll = self.quaternion_to_euler(quaternion)
         #print("Yaw:", yaw, "Pitch:", pitch, "Roll:", roll)
 
@@ -217,7 +218,7 @@ class MoveGroupPythonInterface(object):
         pose_goal.position.x = pos[0]
         pose_goal.position.y = pos[1]
         pose_goal.position.z = pos[2]
-
+        print(pos[0], pos[1], pos[2])
         move_group.set_pose_target(pose_goal)
 
         ## Now, we call the planner to compute the plan and execute it.
@@ -454,9 +455,9 @@ def main():
         move_node.add_box()
         move_node.go_to_joint_state()
 
-        home = [-0.34, -0.34, 0.285,
-             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(125)]
-
+        home = [-0.34, -0.34, 0.387,
+             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
+        input("============ Press `Enter` to vi prøver ...")
         #input("============ Press `Enter` to execute a movement using a pose goal ...")
         move_node.go_to_pose_goal(home)
 
