@@ -11,7 +11,8 @@ import transforms3d.quaternions as quaternions
 import transforms3d.euler as euler
 import tf2_ros
 import tf_conversions
-from math import pi, tau, dist, fabs, cos, atan2, asin
+from math import pi, tau, dist, fabs, cos
+from scannode.msg import largescan
 
 
 from std_msgs.msg import String
@@ -47,25 +48,6 @@ def all_close(goal, actual, tolerance):
 
     return True
 
-def euler_to_quaternion(pose):
-    """
-    Convert Euler angles (roll, pitch, yaw) to quaternion.
-
-    Parameters:
-        roll (float): Rotation around the x-axis in radians.
-        pitch (float): Rotation around the y-axis in radians.
-        yaw (float): Rotation around the z-axis in radians.
-
-    Returns:
-        numpy.ndarray: Quaternion [x, y, z, w].
-    """
-    roll, pitch, yaw = pose[3], pose[4], pose[5]
-    #roll, pitch, yaw = 0, 0, 0
-    # Convert Euler angles to quaternion
-    quaternion = euler.euler2quat(roll, pitch, yaw)
-    print(quaternion)
-    return quaternion
-
 
 class MoveGroupPythonInterface(object):
     """MoveGroupPythonInterfaceTutorial"""
@@ -94,6 +76,9 @@ class MoveGroupPythonInterface(object):
         ## This interface can be used to plan and execute motions:
         group_name = "manipulator"
         move_group = moveit_commander.MoveGroupCommander(group_name)
+        
+        # Receives the data from the large scan aruco
+        rospy.Subscriber("/aruco_data", largescan, self.aruco_callback)
 
         ## Create a `DisplayTrajectory`_ ROS publisher which is used to display
         ## trajectories in Rviz:
@@ -102,19 +87,6 @@ class MoveGroupPythonInterface(object):
             moveit_msgs.msg.DisplayTrajectory,
             queue_size=20,
         )
-
-        ## Getting Basic Information
-        # We can get the name of the reference frame for this robot:
-        planning_frame = move_group.get_planning_frame()
-        print("============ Planning frame: %s" % planning_frame)
-
-        # We can also print the name of the end-effector link for this group:
-        eef_link = move_group.get_end_effector_link()
-        print("============ End effector link: %s" % eef_link)
-
-        # We can get a list of all the groups in the robot:
-        group_names = robot.get_group_names()
-        print("============ Available Planning Groups:", robot.get_group_names())
 
         # Sometimes for debugging it is useful to print the entire state of the
         # robot:
@@ -128,31 +100,33 @@ class MoveGroupPythonInterface(object):
         self.scene = scene
         self.move_group = move_group
         self.display_trajectory_publisher = display_trajectory_publisher
-        self.planning_frame = planning_frame
-        self.eef_link = eef_link
-        self.group_names = group_names
 
-    def go_to_joint_state(self):
+    def aruco_callback(self, msg):
+        # This function will be called whenever a new largescan message is received
+        # Process the received message here
+        print(type(msg.x_distance))
+        print(type(msg.y_distance))
+        print(type(msg.z_distance))
+        print(type(msg.ids))
+        rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids))
+        
+
+    def go_to_joint_state(self, joints):
         # Copy class variables to local variables to make the web tutorials more clear.
         # In practice, you should use the class variables directly unless you have a good
         # reason not to.
         move_group = self.move_group
 
         ## Planning to a Joint Goal
-        ## ^^^^^^^^^^^^^^^^^^^^^^^^
-        ## The Panda's zero configuration is at a `singularity <https://www.quora.com/Robotics-What-is-meant-by-kinematic-singularity>`_, so the first
-        ## thing we want to do is move it to a slightly better configuration.
-        ## We use the constant `tau = 2*pi <https://en.wikipedia.org/wiki/Turn_(angle)#Tau_proposals>`_ for convenience:
         # We get the joint values from the group and change some of the values:
         joint_goal = move_group.get_current_joint_values()
-        homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
-                  3.189222975368164, -0.6959036032306116, -3.1415]
-        joint_goal[0] = homeJoints[0]
-        joint_goal[1] = homeJoints[1]
-        joint_goal[2] = homeJoints[2]
-        joint_goal[3] = homeJoints[3]
-        joint_goal[4] = homeJoints[4]
-        joint_goal[5] = homeJoints[5]
+        
+        joint_goal[0] = joints[0]
+        joint_goal[1] = joints[1]
+        joint_goal[2] = joints[2]
+        joint_goal[3] = joints[3]
+        joint_goal[4] = joints[4]
+        joint_goal[5] = joints[5]
 
         # The go command can be called with joint values, poses, or without any
         # parameters if you have already set the pose or joint target for the group
@@ -166,54 +140,27 @@ class MoveGroupPythonInterface(object):
         current_joints = move_group.get_current_joint_values()
         return all_close(joint_goal, current_joints, 0.01)
 
-   
-
-    def quaternion_to_euler(self, q):
-        qx = q.x
-        qy = q.y
-        qz = q.z
-        qw = q.w
-
-        # Yaw (psi), Pitch (theta), Roll (phi)
-        yaw = atan2(2*(qw*qz + qx*qy), 1 - 2*(qy**2 + qz**2))
-        pitch = asin(2*(qw*qy - qx*qz))
-        roll = atan2(2*(qw*qx + qy*qz), 1 - 2*(qx**2 + qy**2))
-
-        return yaw, pitch, roll
-
-   
-
 
     def go_to_pose_goal(self, pos):
         # Copy class variables to local variables to make the web tutorials more clear.
         # In practice, you should use the class variables directly unless you have a good
         # reason not to.
         move_group = self.move_group
-        pos_quaternion = euler_to_quaternion(pos)
+        
 
         ## Planning to a Pose Goal
         ## ^^^^^^^^^^^^^^^^^^^^^^^
         ## We can plan a motion for this group to a desired pose for the
         ## end-effector:
-
-        # Example usage
-        quaternion_new = self.move_group.get_current_pose()   
-        quaternion = quaternion_new.pose.orientation
-        #print("new print", quaternion)
         
-        yaw, pitch, roll = self.quaternion_to_euler(quaternion)
-        #print("Yaw:", yaw, "Pitch:", pitch, "Roll:", roll)
-
-   
-
-        #print("GOAL POSE!!!", pos)
-        print("QUATONIONS POSE!!", pos_quaternion)
+        pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
         print("Current POSE!!!", self.move_group.get_current_pose())
+        print("QUATONIONS POSE!!", pos_quaternion)
         pose_goal = geometry_msgs.msg.Pose()
-        pose_goal.orientation.x = pos_quaternion[1]
-        pose_goal.orientation.y = pos_quaternion[2]
-        pose_goal.orientation.z = pos_quaternion[3]
-        pose_goal.orientation.w = pos_quaternion[0]
+        pose_goal.orientation.x = pos_quaternion[0]
+        pose_goal.orientation.y = pos_quaternion[1]
+        pose_goal.orientation.z = pos_quaternion[2]
+        pose_goal.orientation.w = pos_quaternion[3]
     
         pose_goal.position.x = pos[0]
         pose_goal.position.y = pos[1]
@@ -452,8 +399,10 @@ def main():
         input(
             "============ Press `Enter` to execute a movement using a joint state goal ..."
         )
+        homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
+                  3.189222975368164, -0.6959036032306116, -3.1415]
         move_node.add_box()
-        move_node.go_to_joint_state()
+        move_node.go_to_joint_state(homeJoints)
 
         home = [-0.34, -0.34, 0.387,
              np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]

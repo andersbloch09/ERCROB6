@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>newur</name>
+  <name>scannode</name>
   <version>0.0.0</version>
-  <description>The newur package</description>
+  <description>The scannode package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
@@ -19,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/ur_control</url> -->
+  <!-- <url type="website">http://wiki.ros.org/scannode</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -49,26 +49,19 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>moveit_core</build_depend>
-  <build_depend>scannode</build_depend>
-  <build_depend>moveit_ros_planning_interface</build_depend>
+  <build_depend>opencv2</build_depend>
+  <build_depend>numpy</build_depend>
   <build_depend>rospy</build_depend>
   <build_depend>std_msgs</build_depend>
-  <build_export_depend>moveit_core</build_export_depend>
-  <build_export_depend>moveit_ros_planning_interface</build_export_depend>
+  <build_depend>message_generation</build_depend>
+  <build_export_depend>cv2</build_export_depend>
+  <build_export_depend>numpy</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
-  <exec_depend>moveit_core</exec_depend>
-  <exec_depend>moveit_ros_planning_interface</exec_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+  <exec_depend>opencv2</exec_depend>
+  <exec_depend>numpy</exec_depend>
   <exec_depend>rospy</exec_depend>
-  <exec_depend>urmove</exec_depend>
   <exec_depend>std_msgs</exec_depend>
-  <exec_depend>scannode</exec_depend>
-  <depend>numpy</depend>
-  <depend>geometry_msgs</depend>
-  <depend>tf_conversions</depend>
-  <depend>tf2_ros</depend>
-
-
 
 
   <!-- The export tag contains other, unspecified, tags -->
