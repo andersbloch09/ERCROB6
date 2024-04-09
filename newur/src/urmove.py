@@ -11,8 +11,8 @@ import transforms3d.quaternions as quaternions
 import transforms3d.euler as euler
 import tf2_ros
 import tf_conversions
-from math import pi, tau, dist, fabs, cos
-from scannode.msg import largescan
+from math import pi, dist, fabs, cos
+from scannode.msg import aruco
 
 
 from std_msgs.msg import String
@@ -67,7 +67,6 @@ class MoveGroupPythonInterface(object):
         ## for getting, setting, and updating the robot's internal understanding of the
         ## surrounding world:
         scene = moveit_commander.PlanningSceneInterface()
-
         ## Instantiate a `MoveGroupCommander`_ object.  This object is an interface
         ## to a planning group (group of joints).  In this tutorial the group is the primary
         ## arm joints in the UR robot, so we set the group's name to "ur_arm".
@@ -78,7 +77,7 @@ class MoveGroupPythonInterface(object):
         move_group = moveit_commander.MoveGroupCommander(group_name)
         
         # Receives the data from the large scan aruco
-        rospy.Subscriber("/aruco_data", largescan, self.aruco_callback)
+        rospy.Subscriber("/aruco_data", aruco, self.aruco_callback)
 
         ## Create a `DisplayTrajectory`_ ROS publisher which is used to display
         ## trajectories in Rviz:
@@ -101,15 +100,20 @@ class MoveGroupPythonInterface(object):
         self.move_group = move_group
         self.display_trajectory_publisher = display_trajectory_publisher
 
+        self.largearuco = aruco()
+        self.smallaruco = aruco()
+
+
     def aruco_callback(self, msg):
-        # This function will be called whenever a new largescan message is received
+        #rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}, rotation_matrix={}, aruco_size={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids, msg.rotation_matrix, msg.aruco_type))
+        # This function will be called whenever a new largescan or smallscan message is received
         # Process the received message here
-        print(type(msg.x_distance))
-        print(type(msg.y_distance))
-        print(type(msg.z_distance))
-        print(type(msg.ids))
-        rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids))
-        
+        if msg.aruco_type == "Large":
+            self.largearuco = msg
+        if msg.aruco_type == "Small":
+            self.smallaruco = msg
+
+        print(self.smallaruco)
 
     def go_to_joint_state(self, joints):
         # Copy class variables to local variables to make the web tutorials more clear.
