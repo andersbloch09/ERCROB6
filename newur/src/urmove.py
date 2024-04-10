@@ -6,6 +6,7 @@ import rospy
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
+import tf2_geometry_msgs
 import numpy as np
 import transforms3d.quaternions as quaternions
 import transforms3d.euler as euler
@@ -93,6 +94,12 @@ class MoveGroupPythonInterface(object):
         print(robot.get_current_state())
         print("")
 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        self.target_frame = "end_effector_link"
+        self.buttonhome = "button_frame"
+
         # Misc variables
         self.box_name = ""
         self.robot = robot
@@ -114,6 +121,7 @@ class MoveGroupPythonInterface(object):
             self.smallaruco = msg
 
         print(self.smallaruco)
+
 
     def go_to_joint_state(self, joints):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -187,6 +195,7 @@ class MoveGroupPythonInterface(object):
         # we use the class variable rather than the copied state variable
         current_pose = self.move_group.get_current_pose().pose
         return all_close(pose_goal, current_pose, 0.01)
+
 
     def plan_cartesian_path(self, scale=1):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -264,6 +273,7 @@ class MoveGroupPythonInterface(object):
         ## **Note:** The robot's current joint state must be within some tolerance of the
         ## first waypoint in the `RobotTrajectory`_ or ``execute()`` will fail
 
+
     def wait_for_state_update(
         self, box_is_known=False, box_is_attached=False, timeout=4
     ):
@@ -309,6 +319,7 @@ class MoveGroupPythonInterface(object):
         # If we exited the while loop without returning then we timed out
         return False
 
+
     def add_box(self, timeout=4):
         # Copy class variables to local variables to make the web tutorials more clear.
         # In practice, you should use the class variables directly unless you have a good
@@ -330,6 +341,7 @@ class MoveGroupPythonInterface(object):
         # variables directly unless you have a good reason not to.
         self.box_name = box_name
         return self.wait_for_state_update(box_is_known=True, timeout=timeout)
+
 
     def attach_box(self, timeout=4):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -358,6 +370,7 @@ class MoveGroupPythonInterface(object):
             box_is_attached=True, box_is_known=False, timeout=timeout
         )
 
+
     def detach_box(self, timeout=4):
         # Copy class variables to local variables to make the web tutorials more clear.
         # In practice, you should use the class variables directly unless you have a good
@@ -375,6 +388,7 @@ class MoveGroupPythonInterface(object):
         return self.wait_for_state_update(
             box_is_known=True, box_is_attached=False, timeout=timeout
         )
+
 
     def remove_box(self, timeout=4):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -396,16 +410,79 @@ class MoveGroupPythonInterface(object):
         )
 
 
+    def get_transform(self):
+        try:
+            transform = self.tf_buffer.lookup_transform("base_link", self.target_frame, rospy.Time(0), rospy.Duration(1.0))
+            return transform
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr("Failed to lookup transform: %s", str(e))
+            return None
+
+    def move_relative_to_frame(self, transform):
+        translation = transform.transform.translation 
+        rotation = transform.transform.rotation
+        print("Rotation   ", rotation)
+        print("Translation   ", translation)
+        
+        pos = [0, 0, 0,
+             np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
+        pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
+        print("Current POSE!!!", self.move_group.get_current_pose())
+        print("QUATONIONS POSE!!", pos_quaternion)
+        pose_goal = geometry_msgs.msg.PoseStamped()
+        pose_goal.header.frame_id = self.buttonhome
+        pose_goal.pose.orientation.x = pos_quaternion[0]
+        pose_goal.pose.orientation.y = pos_quaternion[1]
+        pose_goal.pose.orientation.z = pos_quaternion[2]
+        pose_goal.pose.orientation.w = pos_quaternion[3]
+    
+        pose_goal.pose.position.x = pos[0]
+        pose_goal.pose.position.y = pos[1]
+        pose_goal.pose.position.z = pos[2]
+        print(pos[0], pos[1], pos[2])
+
+        self.move_group.set_pose_target(pose_goal)
+        
+        print(pose_goal.header.frame_id)
+        ## Now, we call the planner to compute the plan and execute it.
+        # `go()` returns a boolean indicating whether the planning and execution was successful.
+        success = self.move_group.go(wait=True)
+        # Calling `stop()` ensures that there is no residual movement
+        self.move_group.stop()
+        # It is always good to clear your targets after planning with poses.
+        # Note: there is no equivalent function for clear_joint_value_targets().
+        self.move_group.clear_pose_targets()
+
+
+        # For testing:
+        # Note that since this section of code will not be included in the tutorials
+        # we use the class variable rather than the copied state variable
+        current_pose = self.move_group.get_current_pose()
+        return all_close(pose_goal, current_pose, 0.01)
+    
+    def publish_fixed_frame(self):
+        tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
+        transform = self.get_transform()
+        # Define the transform from the fixed reference frame to the base frame
+        transform.child_frame_id = self.buttonhome  # Fixed reference frame
+        
+        transform.header.stamp = rospy.Time.now()
+        tf_broadcaster.sendTransform(transform)
+        rospy.sleep(1)
+
+        self.move_relative_to_frame(transform)
+        
+
+
 def main():
     try:
         move_node = MoveGroupPythonInterface()
 
-        input(
-            "============ Press `Enter` to execute a movement using a joint state goal ..."
-        )
         homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
                   3.189222975368164, -0.6959036032306116, -3.1415]
+        
         move_node.add_box()
+
         move_node.go_to_joint_state(homeJoints)
 
         home = [-0.34, -0.34, 0.387,
@@ -413,16 +490,10 @@ def main():
         input("============ Press `Enter` to vi prøver ...")
         move_node.go_to_pose_goal(home)
 
-        input("============ Press `Enter` to plan and display a Cartesian path ...")
-        cartesian_plan, fraction = move_node.plan_cartesian_path()
 
-        input(
-           "============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ..."
-        )
-        move_node.display_trajectory(cartesian_plan)
+        move_node.publish_fixed_frame()
 
-        input("============ Press `Enter` to execute a saved path ...")
-        move_node.execute_plan(cartesian_plan)
+        
 
         print("Program is done")
     except rospy.ROSInterruptException:
