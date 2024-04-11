@@ -418,11 +418,7 @@ class MoveGroupPythonInterface(object):
             rospy.logerr("Failed to lookup transform: %s", str(e))
             return None
 
-    def move_relative_to_frame(self, transform):
-        translation = transform.transform.translation 
-        rotation = transform.transform.rotation
-        print("Rotation   ", rotation)
-        print("Translation   ", translation)
+    def move_relative_to_frame(self):
         
         pos = [0, 0, 0,
              np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
@@ -470,20 +466,50 @@ class MoveGroupPythonInterface(object):
         tf_broadcaster.sendTransform(transform)
         rospy.sleep(1)
 
-        self.move_relative_to_frame(transform)
+        self.move_relative_to_frame()
+    
+    def gohome(self):
+        homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
+                  3.189222975368164, -0.6959036032306116, -3.1415]    
+        joint_goal = self.move_group.get_current_joint_values()
         
+        joint_goal[0] = homeJoints[0]
+        joint_goal[1] = homeJoints[1]
+        joint_goal[2] = homeJoints[2]
+        joint_goal[3] = homeJoints[3]
+        joint_goal[4] = homeJoints[4]
+        joint_goal[5] = homeJoints[5]
+
+        # The go command can be called with joint values, poses, or without any
+        # parameters if you have already set the pose or joint target for the group
+        self.move_group.go(joint_goal, wait=True)
+
+        # Calling ``stop()`` ensures that there is no residual movement
+        self.move_group.stop()
+
+
+        # For testing:
+        current_joints = self.move_group.get_current_joint_values()
+        return all_close(joint_goal, current_joints, 0.01)
+
+    def buttonTask(self):
+        pass
+
+    def setupEnv(self):
+        self.add_box()
 
 
 def main():
     try:
         move_node = MoveGroupPythonInterface()
 
-        homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
-                  3.189222975368164, -0.6959036032306116, -3.1415]
-        
+        move_node.setupEnv()
+
+        move_node.buttonTask()
+
         move_node.add_box()
 
-        move_node.go_to_joint_state(homeJoints)
+        move_node.go_to_joint_state()
 
         home = [-0.34, -0.34, 0.387,
              np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]

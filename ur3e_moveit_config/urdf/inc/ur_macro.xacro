@@ -364,5 +364,20 @@
       <origin xyz="0 0 0.22" rpy="0 0 0"/> <!-- Example: 0.1 meter offset in the z-axis -->
     </joint>
 
+
+    <!-- Define the camera link -->
+    <link name="camera_frame">
+      <!-- Define the visual and collision properties of the camera -->
+      <!-- Add visual and collision elements here -->
+    </link>
+    <!-- Connect the camera frame to an existing link on the robot -->
+    <joint name="camera_joint" type="fixed">
+      <parent link="end_effector_link"/>
+      <child link="camera_frame"/>
+      <!-- Specify the transformation between the camera frame and the parent link -->
+      <origin xyz="0 -0.065 -0.15" rpy="-0.31416 0 0"/>
+    </joint>
+
+
   </xacro:macro>
 </robot>
