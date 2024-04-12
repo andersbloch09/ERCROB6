@@ -505,11 +505,11 @@ def main():
 
         move_node.setupEnv()
 
+        move_node.gohome()
+
         move_node.buttonTask()
 
         move_node.add_box()
-
-        move_node.go_to_joint_state()
 
         home = [-0.34, -0.34, 0.387,
              np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]

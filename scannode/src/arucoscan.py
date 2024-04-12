@@ -17,7 +17,7 @@ class ArucoDetectorNode:
 
         # Initialize the ArUco ID and translation vector publisher
         self.aruco_data_pub = rospy.Publisher('/aruco_data', aruco, queue_size=10)
-        self.rate = rospy.Rate(100)
+        self.rate = rospy.Rate(500)
  
         # Camera matrix and distortion coefficients
         self.mtx = np.array([[1.44003309e+03, 0.00000000e+00, 6.86010223e+02],
