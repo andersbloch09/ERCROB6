@@ -120,7 +120,6 @@ class MoveGroupPythonInterface(object):
         if msg.aruco_type == "Small":
             self.smallaruco = msg
 
-        print(self.smallaruco)
 
 
     def go_to_joint_state(self, joints):
