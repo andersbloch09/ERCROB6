@@ -6,7 +6,6 @@ import rospy
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
-import tf2_geometry_msgs
 import numpy as np
 import transforms3d.quaternions as quaternions
 import transforms3d.euler as euler
@@ -67,22 +66,22 @@ class MoveGroupPythonInterface(object):
         ## Instantiate a `PlanningSceneInterface`_ object.  This provides a remote interface
         ## for getting, setting, and updating the robot's internal understanding of the
         ## surrounding world:
-        scene = moveit_commander.PlanningSceneInterface()
+        self.scene = moveit_commander.PlanningSceneInterface()
         ## Instantiate a `MoveGroupCommander`_ object.  This object is an interface
         ## to a planning group (group of joints).  In this tutorial the group is the primary
         ## arm joints in the UR robot, so we set the group's name to "ur_arm".
         ## If you are using a different robot, change this value to the name of your robot
         ## arm planning group.
         ## This interface can be used to plan and execute motions:
-        group_name = "manipulator"
-        move_group = moveit_commander.MoveGroupCommander(group_name)
+        self.group_name = "manipulator"
+        self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
         
         # Receives the data from the large scan aruco
         rospy.Subscriber("/aruco_data", aruco, self.aruco_callback)
 
         ## Create a `DisplayTrajectory`_ ROS publisher which is used to display
         ## trajectories in Rviz:
-        display_trajectory_publisher = rospy.Publisher(
+        self.display_trajectory_publisher = rospy.Publisher(
             "/move_group/display_planned_path",
             moveit_msgs.msg.DisplayTrajectory,
             queue_size=20,
@@ -100,13 +99,6 @@ class MoveGroupPythonInterface(object):
         self.target_frame = "end_effector_link"
         self.buttonhome = "button_frame"
 
-        # Misc variables
-        self.box_name = ""
-        self.robot = robot
-        self.scene = scene
-        self.move_group = move_group
-        self.display_trajectory_publisher = display_trajectory_publisher
-
         self.largearuco = aruco()
         self.smallaruco = aruco()
 
@@ -114,12 +106,11 @@ class MoveGroupPythonInterface(object):
     def aruco_callback(self, msg):
         #rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}, rotation_matrix={}, aruco_size={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids, msg.rotation_matrix, msg.aruco_type))
         # This function will be called whenever a new largescan or smallscan message is received
-        # Process the received message here
+        # Process the rself.move_group = move_groupeceived message here
         if msg.aruco_type == "Large":
             self.largearuco = msg
         if msg.aruco_type == "Small":
             self.smallaruco = msg
-
 
 
     def go_to_joint_state(self, joints):
@@ -153,12 +144,6 @@ class MoveGroupPythonInterface(object):
 
 
     def go_to_pose_goal(self, pos):
-        # Copy class variables to local variables to make the web tutorials more clear.
-        # In practice, you should use the class variables directly unless you have a good
-        # reason not to.
-        move_group = self.move_group
-        
-
         ## Planning to a Pose Goal
         ## ^^^^^^^^^^^^^^^^^^^^^^^
         ## We can plan a motion for this group to a desired pose for the
@@ -177,16 +162,16 @@ class MoveGroupPythonInterface(object):
         pose_goal.position.y = pos[1]
         pose_goal.position.z = pos[2]
         print(pos[0], pos[1], pos[2])
-        move_group.set_pose_target(pose_goal)
+        self.move_group.set_pose_target(pose_goal)
 
         ## Now, we call the planner to compute the plan and execute it.
         # `go()` returns a boolean indicating whether the planning and execution was successful.
-        success = move_group.go(wait=True)
+        success = self.move_group.go(wait=True)
         # Calling `stop()` ensures that there is no residual movement
-        move_group.stop()
+        self.move_group.stop()
         # It is always good to clear your targets after planning with poses.
         # Note: there is no equivalent function for clear_joint_value_targets().
-        move_group.clear_pose_targets()
+        self.move_group.clear_pose_targets()
 
 
         # For testing:
@@ -274,14 +259,8 @@ class MoveGroupPythonInterface(object):
 
 
     def wait_for_state_update(
-        self, box_is_known=False, box_is_attached=False, timeout=4
+        self, box_is_known=False, box_is_attached=False, timeout=4, box_name=""
     ):
-        # Copy class variables to local variables to make the web tutorials more clear.
-        # In practice, you should use the class variables directly unless you have a good
-        # reason not to.
-        box_name = self.box_name
-        scene = self.scene
-
         ## wait_for_scene_update
         ##
         ## Ensuring Collision Updates Are Received
@@ -300,12 +279,12 @@ class MoveGroupPythonInterface(object):
         seconds = rospy.get_time()
         while (seconds - start < timeout) and not rospy.is_shutdown():
             # Test if the box is in attached objects
-            attached_objects = scene.get_attached_objects([box_name])
+            attached_objects = self.scene.get_attached_objects([box_name])
             is_attached = len(attached_objects.keys()) > 0
 
             # Test if the box is in the scene.
             # Note that attaching the box will remove it from known_objects
-            is_known = box_name in scene.get_known_object_names()
+            is_known = box_name in self.scene.get_known_object_names()
 
             # Test if we are in the expected state
             if (box_is_attached == is_attached) and (box_is_known == is_known):
@@ -319,27 +298,17 @@ class MoveGroupPythonInterface(object):
         return False
 
 
-    def add_box(self, timeout=4):
-        # Copy class variables to local variables to make the web tutorials more clear.
-        # In practice, you should use the class variables directly unless you have a good
-        # reason not to.
-        box_name = self.box_name
-        scene = self.scene
-
+    def add_box(self, object_name, size=(2, 2, 0.01), position=[0, 0, 0], orientation=[0, 0, 0, 0]):
+        timeout=4
         ## Adding Objects to the Planning Scene
-        ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         ## First, we will create a box in the planning scene between the fingers:
         box_pose = geometry_msgs.msg.PoseStamped()
         box_pose.header.frame_id = "base"
-        box_pose.pose.orientation.w = 0
-        box_pose.pose.position.z = 0  # above the panda_hand frame
-        box_name = "box"
-        scene.add_box(box_name, box_pose, size=(2, 2, 0.01))
+        box_pose.pose.orientation.w = orientation[0]
+        box_pose.pose.position.z = position[2]
+        self.scene.add_box(object_name, box_pose, size=(2, 2, 0.01))
 
-        # Copy local variables back to class variables. In practice, you should use the class
-        # variables directly unless you have a good reason not to.
-        self.box_name = box_name
-        return self.wait_for_state_update(box_is_known=True, timeout=timeout)
+        return self.wait_for_state_update(box_is_known=True, timeout=timeout, box_name=object_name)
 
 
     def attach_box(self, timeout=4):
@@ -366,7 +335,7 @@ class MoveGroupPythonInterface(object):
 
         # We wait for the planning scene to update.
         return self.wait_for_state_update(
-            box_is_attached=True, box_is_known=False, timeout=timeout
+            box_is_attached=True, box_is_known=False, timeout=timeout,
         )
 
 
@@ -495,7 +464,7 @@ class MoveGroupPythonInterface(object):
         pass
 
     def setupEnv(self):
-        self.add_box()
+        self.add_box(object_name="table")
 
 
 def main():
@@ -507,8 +476,6 @@ def main():
         move_node.gohome()
 
         move_node.buttonTask()
-
-        move_node.add_box()
 
         home = [-0.34, -0.34, 0.387,
              np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]

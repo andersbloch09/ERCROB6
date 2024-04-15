@@ -22,7 +22,7 @@ class ArucoDetectorNode:
 
         # Initialize the ArUco ID and translation vector publisher
         self.aruco_data_pub = rospy.Publisher('/aruco_data', aruco, queue_size=10)
-        self.rate = rospy.Rate(500)
+        self.rate = rospy.Rate(200)
         
         #This is the sub for the frames to find save the point in relation to the global coordinate system
         self.tf_buffer = tf2_ros.Buffer()
@@ -40,8 +40,8 @@ class ArucoDetectorNode:
         
         # Open a connection to the camera
         # (adjust the index as needed, typically 0 or 1)
-        self.cap = cv2.VideoCapture(0)
     
+        self.cap = cv2.VideoCapture(0)
         ## Check if the camera opened successfully
         #if not self.cap.isOpened():
         #    print("Error: Unable to open camera")
@@ -126,7 +126,6 @@ class ArucoDetectorNode:
                         r = Rotation.from_matrix(rotation_matrix)
                         quaternion = r.as_quat()
 
-                        print("quaternion", quaternion)
                         self.point_data = [x_distance, y_distance, z_distance]
 
 
@@ -140,25 +139,22 @@ class ArucoDetectorNode:
                                 marker_id = int(ids[i][0])
                                 self.display_marker(transformed_point_data, marker_id)
                                 self.id_list.append(int(ids[i][0]))
-                            data.x_distance = x_distance
-                            data.y_distance = y_distance
-                            data.z_distance = z_distance
+                            data.x_distance = transformed_point_data.x
+                            data.y_distance = transformed_point_data.y
+                            data.z_distance = transformed_point_data.z
                             data.ids = int(ids[i][0])
-                            data.rotation_matrix = rotation_matrix
+                            data.quaternion = quaternion
                             data.aruco_type = self.aruco_type
                             self.aruco_data_pub.publish(data)
 
                 # return 0 values of the arucos are not found
                 else:
                     x_distance, y_distance, z_distance, ids = 0, 0, 0, 0
-                    rotation_matrix = [0.0,0.0,0.0,
-                                       0.0,0.0,0.0,
-                                       0.0,0.0,0.0]
                     data.x_distance = x_distance
                     data.y_distance = y_distance
                     data.z_distance = z_distance
                     data.ids = 0
-                    data.rotation_matrix = rotation_matrix
+                    data.quaternion = [0, 0, 0, 0]
                     data.aruco_type = self.aruco_type
                     self.aruco_data_pub.publish(data)
                 if ret:
