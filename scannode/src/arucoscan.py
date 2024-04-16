@@ -41,7 +41,7 @@ class ArucoDetectorNode:
         # Open a connection to the camera
         # (adjust the index as needed, typically 0 or 1)
     
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(2)
         ## Check if the camera opened successfully
         #if not self.cap.isOpened():
         #    print("Error: Unable to open camera")
@@ -63,6 +63,8 @@ class ArucoDetectorNode:
         self.aruco_size = self.aruco_marker_size_small
         self.point_date = []
         self.id_list = []
+        self.large_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14]
+        self.small_list = [10, 13]
 
     def scan_aruco(self):
         try:
@@ -80,7 +82,7 @@ class ArucoDetectorNode:
                     gray, self.aruco_dict, parameters=self.parameters)
 
                 checkTime = time.time()
-                if checkTime - self.startTime >= 0.5:  # Check if 200 milliseconds have elapsed
+                if checkTime - self.startTime >= 0.2:  # Check if 200 milliseconds have elapsed
                     if self.aruco_size == self.aruco_marker_size_small:
                         self.aruco_size = self.aruco_marker_size_large
                         self.aruco_type = "Large"
@@ -135,13 +137,15 @@ class ArucoDetectorNode:
                         if tvec.any():
                             transformed_point_data = self.transform_point_to_global(self.point_data)
                             #print("Point relative to base" ,transformed_point_data)
-                            if int(ids[i][0]) not in self.id_list and int(ids[i][0]) != 0:
+                            if int(ids[i][0]) in self.large_list and int(ids[i][0]) not in self.id_list and int(ids[i][0]) != 0 and self.aruco_type == "Large":
                                 marker_id = int(ids[i][0])
                                 self.display_marker(transformed_point_data, marker_id)
                                 self.id_list.append(int(ids[i][0]))
-                            data.x_distance = transformed_point_data.x
-                            data.y_distance = transformed_point_data.y
-                            data.z_distance = transformed_point_data.z
+                            if int(ids[i][0]) in self.small_list and int(ids[i][0]) not in self.id_list and int(ids[i][0]) != 0 and self.aruco_type == "Small":
+                                marker_id = int(ids[i][0])
+                                self.display_marker(transformed_point_data, marker_id)
+                                self.id_list.append(int(ids[i][0]))
+                            data.position = [transformed_point_data.x, transformed_point_data.y, transformed_point_data.z]
                             data.ids = int(ids[i][0])
                             data.quaternion = quaternion
                             data.aruco_type = self.aruco_type
@@ -150,9 +154,7 @@ class ArucoDetectorNode:
                 # return 0 values of the arucos are not found
                 else:
                     x_distance, y_distance, z_distance, ids = 0, 0, 0, 0
-                    data.x_distance = x_distance
-                    data.y_distance = y_distance
-                    data.z_distance = z_distance
+                    data.position = [x_distance, y_distance, z_distance]
                     data.ids = 0
                     data.quaternion = [0, 0, 0, 0]
                     data.aruco_type = self.aruco_type

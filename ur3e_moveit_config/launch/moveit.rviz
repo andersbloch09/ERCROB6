@@ -16,7 +16,7 @@ Panels:
         - /TF1/Tree1
         - /Marker1
       Splitter Ratio: 0.5
-    Tree Height: 1766
+    Tree Height: 1532
   - Class: rviz/Help
     Name: Help
   - Class: rviz/Views
@@ -265,6 +265,8 @@ Visualization Manager:
           Value: false
         base_link_inertia:
           Value: false
+        button_frame:
+          Value: true
         camera_frame:
           Value: true
         end_effector_link:
@@ -277,9 +279,9 @@ Visualization Manager:
           Value: false
         tool0:
           Value: false
+        tool0_controller:
+          Value: true
         upper_arm_link:
-          Value: false
-        world:
           Value: false
         wrist_1_link:
           Value: false
@@ -294,22 +296,24 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        world:
-          base_link:
-            base:
+        base_link:
+          base:
+            tool0_controller:
               {}
-            base_link_inertia:
-              shoulder_link:
-                upper_arm_link:
-                  forearm_link:
-                    wrist_1_link:
-                      wrist_2_link:
-                        wrist_3_link:
-                          flange:
-                            tool0:
-                              end_effector_link:
-                                camera_frame:
-                                  {}
+          base_link_inertia:
+            shoulder_link:
+              upper_arm_link:
+                forearm_link:
+                  wrist_1_link:
+                    wrist_2_link:
+                      wrist_3_link:
+                        flange:
+                          tool0:
+                            end_effector_link:
+                              camera_frame:
+                                {}
+          button_frame:
+            {}
       Update Interval: 0
       Value: true
     - Class: rviz/Marker
@@ -352,14 +356,14 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.4550005793571472
+      Pitch: 0.370000422000885
       Target Frame: base_link
-      Yaw: 4.254924774169922
+      Yaw: 5.729970455169678
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 2032
+  Height: 1798
   Help:
     collapsed: false
   Hide Left Dock: false
@@ -368,9 +372,9 @@ Window Geometry:
     collapsed: false
   MotionPlanning - Trajectory Slider:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd0000000100000000000001f700000754fc0200000007fb000000100044006900730070006c006100790073010000006e000007540000018200fffffffb0000000800480065006c00700000000342000000bb000000d400fffffffb0000000a00560069006500770073000000010c000000a40000013200fffffffb0000000c00430061006d00650072006100000002ff000001610000000000000000fb0000001e004d006f00740069006f006e00200050006c0061006e006e0069006e00670100000374000001890000000000000000fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000002600000026fb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e006700000001d000000226000002b800ffffff00000c6d0000075400000001000000020000000100000002fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000100000000000001f70000066afc0200000007fb000000100044006900730070006c006100790073010000006e0000066a0000018200fffffffb0000000800480065006c00700000000342000000bb000000d400fffffffb0000000a00560069006500770073000000010c000000a40000013200fffffffb0000000c00430061006d00650072006100000002ff000001610000000000000000fb0000001e004d006f00740069006f006e00200050006c0061006e006e0069006e00670100000374000001890000000000000000fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000002600000026fb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e006700000001d000000226000002b800ffffff00000acd0000066a00000001000000020000000100000002fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
-  Width: 3696
-  X: 3568
+  Width: 3280
+  X: 144
   Y: 54

@@ -13,6 +13,7 @@ import tf2_ros
 import tf_conversions
 from math import pi, dist, fabs, cos
 from scannode.msg import aruco
+import random
 
 
 from std_msgs.msg import String
@@ -47,6 +48,17 @@ def all_close(goal, actual, tolerance):
         return d <= tolerance and cos_phi_half >= cos(tolerance / 2.0)
 
     return True
+
+class arucoObject():
+    def __init__(self, ids, pos, quat, boardType=""):
+        self.id = ids
+        self.pos = pos
+        self.quatanion = quat
+        self.boardType = boardType
+        self.button= []
+
+    def button_locations(self):
+        pass
 
 
 class MoveGroupPythonInterface(object):
@@ -96,21 +108,26 @@ class MoveGroupPythonInterface(object):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.target_frame = "end_effector_link"
-        self.buttonhome = "button_frame"
+        self.end_effector_frame = "end_effector_link"
 
         self.largearuco = aruco()
         self.smallaruco = aruco()
+        self.largelist = []
+        self.smalllist = []
 
 
     def aruco_callback(self, msg):
         #rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}, rotation_matrix={}, aruco_size={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids, msg.rotation_matrix, msg.aruco_type))
         # This function will be called whenever a new largescan or smallscan message is received
         # Process the rself.move_group = move_groupeceived message here
-        if msg.aruco_type == "Large":
+        large_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14]
+        small_list = [10, 13]
+        if msg.ids in large_list and msg.aruco_type == "Large":
             self.largearuco = msg
-        if msg.aruco_type == "Small":
+
+        if msg.ids in small_list and msg.aruco_type == "Small":
             self.smallaruco = msg
+        
 
 
     def go_to_joint_state(self, joints):
@@ -143,13 +160,13 @@ class MoveGroupPythonInterface(object):
         return all_close(joint_goal, current_joints, 0.01)
 
 
-    def go_to_pose_goal(self, pos):
+    def go_to_pose_goal(self, pose):
         ## Planning to a Pose Goal
         ## ^^^^^^^^^^^^^^^^^^^^^^^
         ## We can plan a motion for this group to a desired pose for the
         ## end-effector:
         
-        pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
+        pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pose[3], pose[4], pose[5])
         print("Current POSE!!!", self.move_group.get_current_pose())
         print("QUATONIONS POSE!!", pos_quaternion)
         pose_goal = geometry_msgs.msg.Pose()
@@ -158,10 +175,10 @@ class MoveGroupPythonInterface(object):
         pose_goal.orientation.z = pos_quaternion[2]
         pose_goal.orientation.w = pos_quaternion[3]
     
-        pose_goal.position.x = pos[0]
-        pose_goal.position.y = pos[1]
-        pose_goal.position.z = pos[2]
-        print(pos[0], pos[1], pos[2])
+        pose_goal.position.x = pose[0]
+        pose_goal.position.y = pose[1]
+        pose_goal.position.z = pose[2]
+        print(pose[0], pose[1], pose[2])
         self.move_group.set_pose_target(pose_goal)
 
         ## Now, we call the planner to compute the plan and execute it.
@@ -182,11 +199,6 @@ class MoveGroupPythonInterface(object):
 
 
     def plan_cartesian_path(self, scale=1):
-        # Copy class variables to local variables to make the web tutorials more clear.
-        # In practice, you should use the class variables directly unless you have a good
-        # reason not to.
-        move_group = self.move_group
-
         ## Cartesian Paths
         ## ^^^^^^^^^^^^^^^
         ## You can plan a Cartesian path directly by specifying a list of waypoints
@@ -195,7 +207,7 @@ class MoveGroupPythonInterface(object):
         ##
         waypoints = []
 
-        wpose = move_group.get_current_pose().pose
+        wpose = self.move_group.get_current_pose().pose
         wpose.position.z -= scale * 0.1  # First move up (z)
         wpose.position.y += scale * 0.2  # and sideways (y)
         waypoints.append(copy.deepcopy(wpose))
@@ -211,7 +223,7 @@ class MoveGroupPythonInterface(object):
         # translation.  We will disable the jump threshold by setting it to 0.0,
         # ignoring the check for infeasible jumps in joint space, which is sufficient
         # for this tutorial.
-        (plan, fraction) = move_group.compute_cartesian_path(
+        (plan, fraction) = self.move_group.compute_cartesian_path(
             waypoints, 0.01, 0.0  # waypoints to follow  # eef_step
         )  # jump_threshold
 
@@ -243,16 +255,11 @@ class MoveGroupPythonInterface(object):
 
 
     def execute_plan(self, plan):
-        # Copy class variables to local variables to make the web tutorials more clear.
-        # In practice, you should use the class variables directly unless you have a good
-        # reason not to.
-        move_group = self.move_group
-
         ## Executing a Plan
         ## ^^^^^^^^^^^^^^^^
         ## Use execute if you would like the robot to follow
         ## the plan that has already been computed:
-        move_group.execute(plan, wait=True)
+        self.move_group.execute(plan, wait=True)
 
         ## **Note:** The robot's current joint state must be within some tolerance of the
         ## first waypoint in the `RobotTrajectory`_ or ``execute()`` will fail
@@ -319,7 +326,6 @@ class MoveGroupPythonInterface(object):
         robot = self.robot
         scene = self.scene
         eef_link = self.eef_link
-        group_names = self.group_names
 
         ## Attaching Objects to the Robot
         ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -378,23 +384,34 @@ class MoveGroupPythonInterface(object):
         )
 
 
-    def get_transform(self):
+    def get_transform(self, target_frame):
         try:
-            transform = self.tf_buffer.lookup_transform("base_link", self.target_frame, rospy.Time(0), rospy.Duration(1.0))
+            transform = self.tf_buffer.lookup_transform("base_link", target_frame, rospy.Time(0), rospy.Duration(1.0))
             return transform
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             rospy.logerr("Failed to lookup transform: %s", str(e))
             return None
-
-    def move_relative_to_frame(self):
         
-        pos = [0, 0, 0,
-             np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
+    def publish_fixed_frame(self, frame_name, target_frame, x=0, y=0, z=0):
+        tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
+        transform = self.get_transform(target_frame)
+        # Define the transform from the fixed reference frame to the base frame
+        transform.child_frame_id = frame_name  # Fixed reference frame
+        transform.transform.translation.x += x
+        transform.transform.translation.y += y
+        transform.transform.translation.z += z
+        transform.header.stamp = rospy.Time.now()
+        tf_broadcaster.sendTransform(transform)
+        rospy.sleep(1)
+
+    def move_relative_to_frame(self, frame_id, pos=[0, 0, 0,
+             np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]):
+        
         pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
         print("Current POSE!!!", self.move_group.get_current_pose())
         print("QUATONIONS POSE!!", pos_quaternion)
         pose_goal = geometry_msgs.msg.PoseStamped()
-        pose_goal.header.frame_id = self.buttonhome
+        pose_goal.header.frame_id = frame_id
         pose_goal.pose.orientation.x = pos_quaternion[0]
         pose_goal.pose.orientation.y = pos_quaternion[1]
         pose_goal.pose.orientation.z = pos_quaternion[2]
@@ -423,18 +440,7 @@ class MoveGroupPythonInterface(object):
         # we use the class variable rather than the copied state variable
         current_pose = self.move_group.get_current_pose()
         return all_close(pose_goal, current_pose, 0.01)
-    
-    def publish_fixed_frame(self):
-        tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
-        transform = self.get_transform()
-        # Define the transform from the fixed reference frame to the base frame
-        transform.child_frame_id = self.buttonhome  # Fixed reference frame
-        
-        transform.header.stamp = rospy.Time.now()
-        tf_broadcaster.sendTransform(transform)
-        rospy.sleep(1)
 
-        self.move_relative_to_frame()
     
     def gohome(self):
         homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
@@ -463,8 +469,54 @@ class MoveGroupPythonInterface(object):
     def buttonTask(self):
         pass
 
+    def generate_home_pose(self):
+        home = [-0.34, -0.34, 0.287,
+             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
+
+        random_horizontal = random.uniform(-0.05, 0.05)
+        random_vertical = random.uniform(-0.1, 0.1)
+
+        home[0] = home[0] + random_horizontal
+        home[1] = home[1] + (-1 * random_horizontal)
+        home[2] = home[2] + random_vertical
+
+        return home
+
+    def search_aruco():
+        pass
+            
+
+
+    def check_marker(self):
+        if self.largearuco.ids not in self.largelist: 
+            self.largelist.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
+            
+        else:
+            self.search_aruco()
+
+        
+
+    def define_board(self): 
+        # Search for aruco 
+        # when found save id and position as object in object in the lists 
+        # search again 
+        self.check_marker()
+        
+        
+
     def setupEnv(self):
+        # define the table for no collision
         self.add_box(object_name="table")
+        self.gohome()
+        # Generate and go to random start pose relative to the board
+        generated_pose = self.generate_home_pose()
+        self.go_to_pose_goal(generated_pose)
+        distance_pose = [-0.01, -0.01, 0.4,
+             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
+        self.go_to_pose_goal(distance_pose)
+
+        # Search for arucos to define board
+        self.define_board()
 
 
 def main():
@@ -473,18 +525,14 @@ def main():
 
         move_node.setupEnv()
 
-        move_node.gohome()
-
         move_node.buttonTask()
 
-        home = [-0.34, -0.34, 0.387,
+        home = [-0.34, -0.34, 0.287,
              np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
         input("============ Press `Enter` to vi prøver ...")
         move_node.go_to_pose_goal(home)
 
-
-        move_node.publish_fixed_frame()
-
+        move_node.publish_fixed_frame(frame_name="button_frame", target_frame="end_effector_link")
         
 
         print("Program is done")
