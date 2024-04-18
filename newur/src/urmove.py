@@ -11,9 +11,10 @@ import transforms3d.quaternions as quaternions
 import transforms3d.euler as euler
 import tf2_ros
 import tf_conversions
+import random
 from math import pi, dist, fabs, cos
 from scannode.msg import aruco
-import random
+from gripper.srv import gripperservice
 
 
 from std_msgs.msg import String
@@ -98,7 +99,7 @@ class MoveGroupPythonInterface(object):
             moveit_msgs.msg.DisplayTrajectory,
             queue_size=20,
         )
-
+        
         # Sometimes for debugging it is useful to print the entire state of the
         # robot:
         print("============ Printing robot state")
@@ -115,6 +116,11 @@ class MoveGroupPythonInterface(object):
         self.largelist = []
         self.smalllist = []
 
+        # Different gripper states
+        self.gripperOpen = "open"
+        self.gripperClosed = "close"
+        self.gripperImuBox = "imu"
+        self.gripperSecretLid = "secretLid"
 
     def aruco_callback(self, msg):
         #rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}, rotation_matrix={}, aruco_size={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids, msg.rotation_matrix, msg.aruco_type))
@@ -128,7 +134,14 @@ class MoveGroupPythonInterface(object):
         if msg.ids in small_list and msg.aruco_type == "Small":
             self.smallaruco = msg
         
-
+    def gripper_client(self, new_state):
+        rospy.wait_for_service('gripper_state')
+        try:
+            state = rospy.ServiceProxy('gripper_state', gripperservice)
+            resp = state(new_state)
+            return resp
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
 
     def go_to_joint_state(self, joints):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -510,9 +523,10 @@ class MoveGroupPythonInterface(object):
         # Generate and go to random start pose relative to the board
         generated_pose = self.generate_home_pose()
         self.go_to_pose_goal(generated_pose)
-        distance_pose = [-0.01, -0.01, 0.4,
-             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
-        self.go_to_pose_goal(distance_pose)
+        self.gripper_client(self.gripperClosed)
+        #distance_pose = [-0.01, -0.01, 0.4,
+        #     np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
+        #self.go_to_pose_goal(distance_pose)
 
         # Search for arucos to define board
         self.define_board()

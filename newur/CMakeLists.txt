@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions
   message_generation
   scannode
+  gripper
 )
 
 ## System dependencies are found with CMake's conventions

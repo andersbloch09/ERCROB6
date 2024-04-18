@@ -41,10 +41,6 @@ class GripperController:
         if 60 <= angle <= 180:
             arduino.write((str(angle)).encode('utf-8'))
     
-        
-            
-         
-
 
 def main():
     try:
