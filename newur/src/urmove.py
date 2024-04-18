@@ -495,6 +495,7 @@ class MoveGroupPythonInterface(object):
             self.search_aruco()
 
         
+        
 
     def define_board(self): 
         # Search for aruco 
