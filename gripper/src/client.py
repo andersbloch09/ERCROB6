@@ -14,5 +14,5 @@ def add_two_ints_client(new_state):
 
 
 if __name__ == "__main__":
-    state_update = "open"
+    state_update = "secretLid"
     print("%s, %s"%(state_update, add_two_ints_client(state_update)))
