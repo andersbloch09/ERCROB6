@@ -16,7 +16,7 @@ class GripperController:
     def state_receiver(self, req):
         self.state_server = req.new_state
         self.state = self.state_server
-        print(self.state)
+        #print(self.state)
         self.loop(self.state)
         rospy.sleep(2)
         gripperservice.current_state = "reached"
@@ -27,7 +27,7 @@ class GripperController:
         parser.add_argument("-p", "--usb_port", help="USB port.", default="/dev/ttyACM0")
         args = parser.parse_args()
         arduino = serial.Serial(args.usb_port, 9600)  # Adjust the baud rate accordingly
-        print("Serial device connected!")
+        #print("Serial device connected!")
         if state == "open":
             angleset = 180
         if state == "close":

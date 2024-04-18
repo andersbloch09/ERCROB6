@@ -116,7 +116,7 @@ class ArucoDetectorNode:
                         #print("x coordinate", x_distance)
                         #print("y coordinate", y_distance)
 
-                        print("ID", ids[i][0])
+                        #print("ID", ids[i][0])
 
                         cv2.drawFrameAxes(frame, self.mtx, self.dist, rvec[0], tvec[0], 0.1)
                         

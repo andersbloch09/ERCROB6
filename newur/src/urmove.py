@@ -523,7 +523,7 @@ class MoveGroupPythonInterface(object):
         # Generate and go to random start pose relative to the board
         generated_pose = self.generate_home_pose()
         self.go_to_pose_goal(generated_pose)
-        self.gripper_client(self.gripperClosed)
+        self.gripper_client(self.gripperOpen)
         #distance_pose = [-0.01, -0.01, 0.4,
         #     np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
         #self.go_to_pose_goal(distance_pose)
