@@ -2,10 +2,7 @@
 
 import serial
 import argparse
-import sys
-import time
 import rospy
-from std_msgs.msg import Int16
 from gripper.srv import gripperservice 
 
 class GripperController:
