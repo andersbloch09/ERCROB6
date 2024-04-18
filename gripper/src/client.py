@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
    
 import rospy
-from gripper.srv import *
+from gripper.srv import gripperservice
 
 def add_two_ints_client(new_state):
       rospy.wait_for_service('gripper_state')
