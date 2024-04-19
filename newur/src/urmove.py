@@ -173,15 +173,15 @@ class MoveGroupPythonInterface(object):
         return all_close(joint_goal, current_joints, 0.01)
 
 
-    def go_to_pose_goal(self, pose):
+    def go_to_pose_goal(self, pose, wait=True):
         ## Planning to a Pose Goal
         ## ^^^^^^^^^^^^^^^^^^^^^^^
         ## We can plan a motion for this group to a desired pose for the
         ## end-effector:
         
         pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pose[3], pose[4], pose[5])
-        print("Current POSE!!!", self.move_group.get_current_pose())
-        print("QUATONIONS POSE!!", pos_quaternion)
+        #print("Current POSE!!!", self.move_group.get_current_pose())
+        #print("QUATONIONS POSE!!", pos_quaternion)
         pose_goal = geometry_msgs.msg.Pose()
         pose_goal.orientation.x = pos_quaternion[0]
         pose_goal.orientation.y = pos_quaternion[1]
@@ -196,7 +196,7 @@ class MoveGroupPythonInterface(object):
 
         ## Now, we call the planner to compute the plan and execute it.
         # `go()` returns a boolean indicating whether the planning and execution was successful.
-        success = self.move_group.go(wait=True)
+        success = self.move_group.go(wait)
         # Calling `stop()` ensures that there is no residual movement
         self.move_group.stop()
         # It is always good to clear your targets after planning with poses.
@@ -421,8 +421,8 @@ class MoveGroupPythonInterface(object):
              np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]):
         
         pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
-        print("Current POSE!!!", self.move_group.get_current_pose())
-        print("QUATONIONS POSE!!", pos_quaternion)
+        #print("Current POSE!!!", self.move_group.get_current_pose())
+        #print("QUATONIONS POSE!!", pos_quaternion)
         pose_goal = geometry_msgs.msg.PoseStamped()
         pose_goal.header.frame_id = frame_id
         pose_goal.pose.orientation.x = pos_quaternion[0]
@@ -455,11 +455,12 @@ class MoveGroupPythonInterface(object):
         return all_close(pose_goal, current_pose, 0.01)
 
     
-    def gohome(self):
+    def gohome(self, gripper_state = "open"):
+        self.gripper_client(gripper_state)
         homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
                   3.189222975368164, -0.6959036032306116, -3.1415]    
         joint_goal = self.move_group.get_current_joint_values()
-        
+    
         joint_goal[0] = homeJoints[0]
         joint_goal[1] = homeJoints[1]
         joint_goal[2] = homeJoints[2]
@@ -494,19 +495,15 @@ class MoveGroupPythonInterface(object):
         home[2] = home[2] + random_vertical
 
         return home
-
-    def search_aruco():
-        pass
-            
-
+        
 
     def check_marker(self):
         if self.largearuco.ids not in self.largelist: 
             self.largelist.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
             
         else:
-            self.search_aruco()
-
+            current_pose = self.move_group.get_current_pose()
+            print("currentpose", current_pose)
         
     def define_board(self): 
         # Search for aruco 
@@ -523,7 +520,6 @@ class MoveGroupPythonInterface(object):
         # Generate and go to random start pose relative to the board
         generated_pose = self.generate_home_pose()
         self.go_to_pose_goal(generated_pose)
-        self.gripper_client(self.gripperOpen)
         #distance_pose = [-0.01, -0.01, 0.4,
         #     np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
         #self.go_to_pose_goal(distance_pose)
