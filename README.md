@@ -1,18 +1,16 @@
 # Maintenance Task
 ## How to launch the scripts
-To launch UR_driver run the following but remember to change the name of your workspace. 
+To launch go into src folder of workspace and run. 
 ```bash
-roslaunch ur_robot_driver ur3e_bringup.launch robot_ip:=192.168.1.102 robot_description_file:=$HOME/ws_ur/src/ur3e_moveit_config/launch/load_ur3e.launch
+./runit.sh
 ```
 ```bash
-roslaunch ur3e_moveit_config moveit_planning_execution.launch 
+rosrun newur urmove.py
 ```
-```bash 
-rosrun newur urmove.py 
-```
+
 If for testing without robot in pure Rviz use the following commands: 
 ```bash 
-roslaunch ur3e_moveit_config demo.launch
+./demo_runit.sh
 ```
 ```bash 
 rosrun newur urmove.py 

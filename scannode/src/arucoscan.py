@@ -41,7 +41,7 @@ class ArucoDetectorNode:
         # Open a connection to the camera
         # (adjust the index as needed, typically 0 or 1)
     
-        self.cap = cv2.VideoCapture(2)
+        self.cap = cv2.VideoCapture(0)
         ## Check if the camera opened successfully
         #if not self.cap.isOpened():
         #    print("Error: Unable to open camera")
