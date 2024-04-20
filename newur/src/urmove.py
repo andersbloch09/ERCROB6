@@ -121,6 +121,9 @@ class MoveGroupPythonInterface(object):
         self.gripperClosed = "close"
         self.gripperImuBox = "imu"
         self.gripperSecretLid = "secretLid"
+        
+        self.mesh_path_open = "package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_part_open.stl"
+        self.mesh_path_closed = "package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_closed.stl"
 
     def aruco_callback(self, msg):
         #rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}, rotation_matrix={}, aruco_size={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids, msg.rotation_matrix, msg.aruco_type))
@@ -137,6 +140,10 @@ class MoveGroupPythonInterface(object):
     def gripper_client(self, new_state):
         rospy.wait_for_service('gripper_state')
         try:
+            if new_state == "open":
+                rospy.set_param('/gripper_mesh_path', self.mesh_path_open)
+            else: 
+                rospy.set_param('/gripper_mesh_path', self.mesh_path_closed)
             state = rospy.ServiceProxy('gripper_state', gripperservice)
             resp = state(new_state)
             return resp

@@ -54,6 +54,7 @@
   <xacro:include filename="$(find ur3e_moveit_config)/urdf/inc/ur_transmissions.xacro" />
   <xacro:include filename="$(find ur3e_moveit_config)/urdf/inc/ur_common.xacro" />
 
+
   <xacro:macro name="ur_robot" params="
     prefix
     joint_limits_parameters_file
@@ -324,7 +325,7 @@
       <child link="${prefix}flange" />
       <origin xyz="0 0 0" rpy="0 ${-pi/2.0} ${-pi/2.0}" />
     </joint>
-
+    
     <!-- ROS-Industrial 'tool0' frame: all-zeros tool frame -->
     <link name="${prefix}tool0"/>
     <joint name="${prefix}flange-tool0" type="fixed">
