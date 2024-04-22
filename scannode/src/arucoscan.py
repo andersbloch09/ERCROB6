@@ -135,7 +135,7 @@ class ArucoDetectorNode:
                         #print("Rotation matrix", rotation_matrix)
                         # If the tvec contains any values it is returned
                         if tvec.any():
-                            transformed_point_data = self.transform_point_to_global(self.point_data)
+                            transformed_point_data = self.transform_point_to_global(self.point_data, quaternion)
                             #print("Point relative to base" ,transformed_point_data)
                             if int(ids[i][0]) in self.large_list and int(ids[i][0]) not in self.id_list and int(ids[i][0]) != 0 and self.aruco_type == "Large":
                                 marker_id = int(ids[i][0])
@@ -145,12 +145,14 @@ class ArucoDetectorNode:
                                 marker_id = int(ids[i][0])
                                 self.display_marker(transformed_point_data, marker_id)
                                 self.id_list.append(int(ids[i][0]))
-                            data.position = [transformed_point_data.x, transformed_point_data.y, transformed_point_data.z]
+                            data.position = [transformed_point_data.position.x, transformed_point_data.position.y, transformed_point_data.position.z]
                             data.ids = int(ids[i][0])
-                            data.quaternion = quaternion
+                            data.quaternion = [transformed_point_data.orientation.x,
+                                                transformed_point_data.orientation.y,
+                                                transformed_point_data.orientation.z,
+                                                transformed_point_data.orientation.w]
                             data.aruco_type = self.aruco_type
                             self.aruco_data_pub.publish(data)
-
                 # return 0 values of the arucos are not found
                 else:
                     x_distance, y_distance, z_distance, ids = 0, 0, 0, 0
@@ -172,12 +174,16 @@ class ArucoDetectorNode:
         except Exception as e:
             rospy.logerr('Error processing image: {}'.format(str(e)))
     
-    def transform_point_to_global(self, point_data):
+    def transform_point_to_global(self, point_data, quatanion):
         point_in_frame = PoseStamped()
         point_in_frame.header.frame_id = "camera_frame"  # Specify the frame ID
         point_in_frame.pose.position.x = point_data[0]
         point_in_frame.pose.position.y = point_data[1]
         point_in_frame.pose.position.z = point_data[2]
+        point_in_frame.pose.orientation.w = quatanion[3]
+        point_in_frame.pose.orientation.x = quatanion[0]
+        point_in_frame.pose.orientation.y = quatanion[1]
+        point_in_frame.pose.orientation.z = quatanion[2]
         
 
         try: 
@@ -187,7 +193,7 @@ class ArucoDetectorNode:
             # Transform the point to the target frame
             transformed_point = self.tf_buffer.transform(point_in_frame, "base_link")
 
-            return transformed_point.pose.position
+            return transformed_point.pose
         
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             rospy.logerr("Failed to transform point: %s" % str(e))
@@ -210,9 +216,9 @@ class ArucoDetectorNode:
 
         # Set the point position
         
-        marker.pose.position.x = point_data.x
-        marker.pose.position.y = point_data.y
-        marker.pose.position.z = point_data.z
+        marker.pose.position.x = point_data.position.x
+        marker.pose.position.y = point_data.position.y
+        marker.pose.position.z = point_data.position.z
 
         # Publish the Marker message
         self.marker_pub.publish(marker)
@@ -224,9 +230,9 @@ class ArucoDetectorNode:
         text_marker.header.stamp = rospy.Time.now()
         text_marker.type = Marker.TEXT_VIEW_FACING
         text_marker.action = Marker.ADD
-        text_marker.pose.position.x = point_data.x
-        text_marker.pose.position.y = point_data.y
-        text_marker.pose.position.z = point_data.z + 0.05  # Offset above the main marker
+        text_marker.pose.position.x = point_data.position.x
+        text_marker.pose.position.y = point_data.position.y
+        text_marker.pose.position.z = point_data.position.z + 0.05  # Offset above the main marker
         text_marker.pose.orientation.w = 1.0
         text_marker.scale.z = 0.05  # Text size
         text_marker.color.g = 1.0  # Red color

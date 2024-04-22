@@ -12,6 +12,7 @@ import transforms3d.euler as euler
 import tf2_ros
 import tf_conversions
 import random
+from tf2_geometry_msgs import PoseStamped
 from math import pi, dist, fabs, cos
 from scannode.msg import aruco
 from gripper.srv import gripperservice
@@ -52,11 +53,12 @@ def all_close(goal, actual, tolerance):
 
 class arucoObject():
     def __init__(self, ids, pos, quat, boardType=""):
-        self.id = ids
+        self.ids = ids
         self.pos = pos
-        self.quatanion = quat
+        self.quat = quat
         self.boardType = boardType
         self.button= []
+        self.anchorUsed = 0
 
     def button_locations(self):
         pass
@@ -89,6 +91,12 @@ class MoveGroupPythonInterface(object):
         self.group_name = "manipulator"
         self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
         
+        self.large_list_saved = []
+        self.small_list_saved = []
+        self.largearuco = aruco()
+        self.smallaruco = aruco()
+        self.search_state = 1
+        
         # Receives the data from the large scan aruco
         rospy.Subscriber("/aruco_data", aruco, self.aruco_callback)
 
@@ -111,10 +119,6 @@ class MoveGroupPythonInterface(object):
 
         self.end_effector_frame = "end_effector_link"
 
-        self.largearuco = aruco()
-        self.smallaruco = aruco()
-        self.largelist = []
-        self.smalllist = []
 
         # Different gripper states
         self.gripperOpen = "open"
@@ -129,13 +133,25 @@ class MoveGroupPythonInterface(object):
         #rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}, rotation_matrix={}, aruco_size={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids, msg.rotation_matrix, msg.aruco_type))
         # This function will be called whenever a new largescan or smallscan message is received
         # Process the rself.move_group = move_groupeceived message here
-        large_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14]
-        small_list = [10, 13]
-        if msg.ids in large_list and msg.aruco_type == "Large":
+        large_checker = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14]
+        small_checker = [10, 13]
+        if msg.ids in large_checker and msg.aruco_type == "Large":
             self.largearuco = msg
+            if self.large_list_saved == []:
+                if self.largearuco.ids > 0: 
+                    self.large_list_saved.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
+            elif all(obj.ids != self.largearuco.ids for obj in self.large_list_saved):
+                self.large_list_saved.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
 
-        if msg.ids in small_list and msg.aruco_type == "Small":
+            
+        if msg.ids in small_checker and msg.aruco_type == "Small":
             self.smallaruco = msg
+            if self.small_list_saved == []:
+                if self.smallaruco.ids > 0:
+                  self.small_list_saved.append(arucoObject(self.smallaruco.ids, self.smallaruco.position, self.smallaruco.quaternion))
+            elif all(obj.ids != self.smallaruco.ids for obj in self.small_list_saved):
+                self.small_list_saved.append(arucoObject(self.smallaruco.ids, self.smallaruco.position, self.smallaruco.quaternion))
+
         
     def gripper_client(self, new_state):
         rospy.wait_for_service('gripper_state')
@@ -218,7 +234,7 @@ class MoveGroupPythonInterface(object):
         return all_close(pose_goal, current_pose, 0.01)
 
 
-    def plan_cartesian_path(self, scale=1):
+    def plan_cartesian_path(self, frame_name, pos):
         ## Cartesian Paths
         ## ^^^^^^^^^^^^^^^
         ## You can plan a Cartesian path directly by specifying a list of waypoints
@@ -226,17 +242,24 @@ class MoveGroupPythonInterface(object):
         ## Python shell, set scale = 1.0.
         ##
         waypoints = []
+    
+        # Create a PoseStamped message to hold the waypoints
+        wpose = PoseStamped()
+        wpose.header.frame_id = frame_name
+        wpose.pose.position.x = pos[0]
+        wpose.pose.position.y = pos[1]
+        wpose.pose.position.z = pos[2]
 
-        wpose = self.move_group.get_current_pose().pose
-        wpose.position.z -= scale * 0.1  # First move up (z)
-        wpose.position.y += scale * 0.2  # and sideways (y)
-        waypoints.append(copy.deepcopy(wpose))
+        pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
 
-        wpose.position.x += scale * 0.1  # Second move forward/backwards in (x)
-        waypoints.append(copy.deepcopy(wpose))
+        wpose.pose.orientation.x = pos_quaternion[0]
+        wpose.pose.orientation.y = pos_quaternion[1]
+        wpose.pose.orientation.z = pos_quaternion[2]
+        wpose.pose.orientation.w = pos_quaternion[3]
 
-        wpose.position.y -= scale * 0.1  # Third move sideways (y)
-        waypoints.append(copy.deepcopy(wpose))
+        # Transform the pose to the end-effector frame
+        transformed_pose_stamped = self.tf_buffer.transform(wpose, "base_link")
+        waypoints.append(transformed_pose_stamped.pose)
 
         # We want the Cartesian path to be interpolated at a resolution of 1 cm
         # which is why we will specify 0.01 as the eef_step in Cartesian
@@ -246,9 +269,9 @@ class MoveGroupPythonInterface(object):
         (plan, fraction) = self.move_group.compute_cartesian_path(
             waypoints, 0.01, 0.0  # waypoints to follow  # eef_step
         )  # jump_threshold
-
+        self.execute_plan(plan)
         # Note: We are just planning, not asking move_group to actually move the robot yet:
-        return plan, fraction
+        
 
 
     def display_trajectory(self, plan):
@@ -412,14 +435,21 @@ class MoveGroupPythonInterface(object):
             rospy.logerr("Failed to lookup transform: %s", str(e))
             return None
         
-    def publish_fixed_frame(self, frame_name, target_frame, x=0, y=0, z=0):
+    def publish_fixed_frame(self, frame_name, target_frame, pos=[0, 0, 0], quat = [0, 0, 0, 0]):
         tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
         transform = self.get_transform(target_frame)
+        if quat[3] != 0: 
+            transform.transform.rotation.x = quat[0]
+            transform.transform.rotation.y = quat[1]
+            transform.transform.rotation.z = quat[2]
+            transform.transform.rotation.w = quat[3]
+
+            
         # Define the transform from the fixed reference frame to the base frame
         transform.child_frame_id = frame_name  # Fixed reference frame
-        transform.transform.translation.x += x
-        transform.transform.translation.y += y
-        transform.transform.translation.z += z
+        transform.transform.translation.x += pos[0]
+        transform.transform.translation.y += pos[1]
+        transform.transform.translation.z += pos[2]
         transform.header.stamp = rospy.Time.now()
         tf_broadcaster.sendTransform(transform)
         rospy.sleep(1)
@@ -427,7 +457,9 @@ class MoveGroupPythonInterface(object):
     def move_relative_to_frame(self, frame_id, pos=[0, 0, 0,
              np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]):
         
+
         pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
+        
         #print("Current POSE!!!", self.move_group.get_current_pose())
         #print("QUATONIONS POSE!!", pos_quaternion)
         pose_goal = geometry_msgs.msg.PoseStamped()
@@ -487,8 +519,6 @@ class MoveGroupPythonInterface(object):
         current_joints = self.move_group.get_current_joint_values()
         return all_close(joint_goal, current_joints, 0.01)
 
-    def buttonTask(self):
-        pass
 
     def generate_home_pose(self):
         home = [-0.34, -0.34, 0.287,
@@ -503,36 +533,73 @@ class MoveGroupPythonInterface(object):
 
         return home
         
+    def match_aruco(self):
+        anchor = self.large_list_saved[-1]
+        anchor.quat
+        euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+        anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+        
+        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+        
+        pos = [0, 0, -0.05, 0, 0, 0]
+        self.move_relative_to_frame("anchor", pos) 
+
+        self.large_list_saved[-1].anchorUsed = 1
+
+    def search_movement(self):
+        if not self.large_list_saved:
+            pos=[0.0, -0.05, 0.0, 
+                np.deg2rad(0.0), np.deg2rad(15), np.deg2rad(0)]
+            self.plan_cartesian_path("start_frame", pos)
+            self.move_relative_to_frame("start_frame", pos)
+            pos=[0, 0, 0, 
+                np.deg2rad(0), np.deg2rad(30), np.deg2rad(0)]
+            self.plan_cartesian_path("start_frame", pos)
+            pos=[0, 0, 0, 
+                np.deg2rad(-30), np.deg2rad(0), np.deg2rad(0)]
+            self.plan_cartesian_path("start_frame", pos)
+            pos=[0, 0, 0, 
+                np.deg2rad(0), np.deg2rad(-30), np.deg2rad(0)]
+            self.plan_cartesian_path("start_frame", pos)
+                
+
 
     def check_marker(self):
-        if self.largearuco.ids not in self.largelist: 
-            self.largelist.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
-            
-        else:
-            current_pose = self.move_group.get_current_pose()
-            print("currentpose", current_pose)
+        while len(self.large_list_saved) < 9:
+            # Find and append found arucos for the button board
+            if len(self.large_list_saved) > 0 and self.large_list_saved[-1].anchorUsed == 0:
+                self.match_aruco()
+
+            else:
+                self.search_movement()
+                    
+                
+
+
+    def buttonTask(self):
+        self.define_board()
         
     def define_board(self): 
         # Search for aruco 
         # when found save id and position as object in object in the lists 
-        # search again 
+        # search again '
+        self.publish_fixed_frame(frame_name="start_frame", target_frame="end_effector_link")
         self.check_marker()
-        
         
 
     def setupEnv(self):
         # define the table for no collision
         self.add_box(object_name="table")
-        self.gohome()
+        #self.gohome()
         # Generate and go to random start pose relative to the board
-        generated_pose = self.generate_home_pose()
-        self.go_to_pose_goal(generated_pose)
+        #generated_pose = self.generate_home_pose()
+        #self.go_to_pose_goal(generated_pose)
         #distance_pose = [-0.01, -0.01, 0.4,
         #     np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
         #self.go_to_pose_goal(distance_pose)
 
         # Search for arucos to define board
-        self.define_board()
+        
 
 
 def main():
@@ -548,7 +615,6 @@ def main():
         input("============ Press `Enter` to vi prøver ...")
         move_node.go_to_pose_goal(home)
 
-        move_node.publish_fixed_frame(frame_name="button_frame", target_frame="end_effector_link")
         
 
         print("Program is done")

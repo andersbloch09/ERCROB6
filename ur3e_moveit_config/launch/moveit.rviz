@@ -259,14 +259,14 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        anchor:
+          Value: true
         base:
           Value: false
         base_link:
           Value: false
         base_link_inertia:
           Value: false
-        button_frame:
-          Value: true
         camera_frame:
           Value: true
         end_effector_link:
@@ -297,6 +297,8 @@ Visualization Manager:
       Show Names: true
       Tree:
         base_link:
+          anchor:
+            {}
           base:
             tool0_controller:
               {}
@@ -312,8 +314,6 @@ Visualization Manager:
                             end_effector_link:
                               camera_frame:
                                 {}
-          button_frame:
-            {}
       Update Interval: 0
       Value: true
     - Class: rviz/Marker
@@ -321,7 +321,7 @@ Visualization Manager:
       Marker Topic: visualization_marker
       Name: Marker
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -340,7 +340,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1.602722406387329
+      Distance: 1.4289366006851196
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -356,9 +356,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.370000422000885
+      Pitch: 0.3600003719329834
       Target Frame: base_link
-      Yaw: 5.729970455169678
+      Yaw: 4.489956378936768
     Saved: ~
 Window Geometry:
   Displays:
