@@ -93,6 +93,7 @@ class MoveGroupPythonInterface(object):
         
         self.large_list_saved = []
         self.small_list_saved = []
+        self.button_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         self.largearuco = aruco()
         self.smallaruco = aruco()
         self.search_state = 1
@@ -542,39 +543,73 @@ class MoveGroupPythonInterface(object):
         self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
         
         pos = [0, 0, -0.05, 0, 0, 0]
-        self.move_relative_to_frame("anchor", pos) 
+        self.plan_cartesian_path("anchor", pos)
+        #self.move_relative_to_frame("anchor", pos) 
 
         self.large_list_saved[-1].anchorUsed = 1
 
     def search_movement(self):
         if not self.large_list_saved:
-            pos=[0.0, -0.05, 0.0, 
-                np.deg2rad(0.0), np.deg2rad(15), np.deg2rad(0)]
-            self.plan_cartesian_path("start_frame", pos)
-            self.move_relative_to_frame("start_frame", pos)
-            pos=[0, 0, 0, 
-                np.deg2rad(0), np.deg2rad(30), np.deg2rad(0)]
-            self.plan_cartesian_path("start_frame", pos)
-            pos=[0, 0, 0, 
-                np.deg2rad(-30), np.deg2rad(0), np.deg2rad(0)]
-            self.plan_cartesian_path("start_frame", pos)
-            pos=[0, 0, 0, 
-                np.deg2rad(0), np.deg2rad(-30), np.deg2rad(0)]
-            self.plan_cartesian_path("start_frame", pos)
-                
+            current_pose = self.move_group.get_current_pose()
+            #print(current_pose)
+            if current_pose.pose.position.z < 0.20: 
+                print("Making the first move")
+                rospy.sleep(3)
+                pos=[0.0, -0.4 + current_pose.pose.position.z, 0.0, 
+                np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
+                self.plan_cartesian_path("start_frame", pos)
+            if current_pose.pose.position.z < 0.41:
+                print("Making the seconds move")
+                rospy.sleep(3)
+                pos=[-0.05, -0.4 + current_pose.pose.position.z, -0.10, 
+                    np.deg2rad(0), np.deg2rad(15), np.deg2rad(0)]
+                self.plan_cartesian_path("start_frame", pos)
 
+            start_joints = self.move_group.get_current_joint_values()
+            joints = start_joints
+            joints[3] = joints[3] - np.deg2rad(20)
+            self.go_to_joint_state(joints)
+            joints = start_joints
+            joints[3] = joints[3] + np.deg2rad(20)
+            self.go_to_joint_state(joints)
+            joints = start_joints
+            joints[3] = joints[3] + np.deg2rad(20)
+            self.go_to_joint_state(joints)
+            joints = start_joints
+            joints[3] = joints[3] - np.deg2rad(20)
+            self.go_to_joint_state(joints)
+            joints = start_joints
+            self.go_to_joint_state(joints)
+        
+        else: 
+            current_pose = self.move_group.get_current_pose()
+            if current_pose.pose.position.z < 0.45 \
+                and current_pose.pose.position.z > 0.13:
+                print(current_pose) 
+                print("Moving Down")
+                rospy.sleep(3)
+                pos=[0.0, 0.5, -0.05, 
+                np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
+                self.plan_cartesian_path("anchor", pos)
 
+             
+    
+            
+
+                                                    
     def check_marker(self):
-        while len(self.large_list_saved) < 9:
-            # Find and append found arucos for the button board
-            if len(self.large_list_saved) > 0 and self.large_list_saved[-1].anchorUsed == 0:
-                self.match_aruco()
+        try:
+            while len(self.large_list_saved) < 9:
+                # Find and append found arucos for the button board
+                if len(self.large_list_saved) > 0 and self.large_list_saved[-1].anchorUsed == 0 and self.large_list_saved[-1].ids in self.button_ids:
+                    self.match_aruco()
 
-            else:
-                self.search_movement()
+                else:
+                    self.search_movement()
+        except KeyboardInterrupt:
+            return
                     
                 
-
 
     def buttonTask(self):
         self.define_board()
