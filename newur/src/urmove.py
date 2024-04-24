@@ -548,19 +548,68 @@ class MoveGroupPythonInterface(object):
 
     def search_movement(self):
         if not self.large_list_saved:
-            pos=[0.0, -0.05, 0.0, 
-                np.deg2rad(0.0), np.deg2rad(15), np.deg2rad(0)]
-            self.plan_cartesian_path("start_frame", pos)
-            self.move_relative_to_frame("start_frame", pos)
-            pos=[0, 0, 0, 
-                np.deg2rad(0), np.deg2rad(30), np.deg2rad(0)]
-            self.plan_cartesian_path("start_frame", pos)
-            pos=[0, 0, 0, 
-                np.deg2rad(-30), np.deg2rad(0), np.deg2rad(0)]
-            self.plan_cartesian_path("start_frame", pos)
-            pos=[0, 0, 0, 
-                np.deg2rad(0), np.deg2rad(-30), np.deg2rad(0)]
-            self.plan_cartesian_path("start_frame", pos)
+            move_group = self.move_group
+
+            joints = move_group.get_current_joint_values()
+            joints[0] = joints[0]
+            joints[1] = joints[1]
+            joints[2] = joints[2]
+            joints[3] = joints[3] - np.deg2rad(20)
+            joints[4] = joints[4] 
+            joints[5] = joints[5]
+            self.go_to_joint_state(joints)
+
+            joints = move_group.get_current_joint_values()
+            joints[0] = joints[0]
+            joints[1] = joints[1]
+            joints[2] = joints[2]
+            joints[3] = joints[3] + np.deg2rad(20)
+            joints[4] = joints[4] + np.deg2rad(20)
+            joints[5] = joints[5]
+            self.go_to_joint_state(joints)
+
+            joints = move_group.get_current_joint_values()
+            joints[0] = joints[0]
+            joints[1] = joints[1]
+            joints[2] = joints[2]
+            joints[3] = joints[3] + np.deg2rad(20) 
+            joints[4] = joints[4] - np.deg2rad(20)
+            joints[5] = joints[5]
+            self.go_to_joint_state(joints)
+
+            joints = move_group.get_current_joint_values()
+            joints[0] = joints[0]
+            joints[1] = joints[1]
+            joints[2] = joints[2]
+            joints[3] = joints[3] - np.deg2rad(20)
+            joints[4] = joints[4] - np.deg2rad(20)
+            joints[5] = joints[5]
+            self.go_to_joint_state(joints)
+
+            joints = move_group.get_current_joint_values()
+            joints[0] = joints[0]
+            joints[1] = joints[1]
+            joints[2] = joints[2]
+            joints[3] = joints[3] 
+            joints[4] = joints[4] + np.deg2rad(20)
+            joints[5] = joints[5]
+            self.go_to_joint_state(joints)
+
+
+        #if not self.large_list_saved:
+        #    pos=[0.0, -0.05, 0.0, 
+        #        np.deg2rad(0.0), np.deg2rad(15), np.deg2rad(0)]
+        #    self.plan_cartesian_path("start_frame", pos)
+        #    self.move_relative_to_frame("start_frame", pos)
+        #    pos=[0, 0, 0, 
+        #        np.deg2rad(0), np.deg2rad(30), np.deg2rad(0)]
+        #    self.plan_cartesian_path("start_frame", pos)
+        #    pos=[0, 0, 0, 
+        #        np.deg2rad(-30), np.deg2rad(0), np.deg2rad(0)]
+        #    self.plan_cartesian_path("start_frame", pos)
+        #    pos=[0, 0, 0, 
+        #        np.deg2rad(0), np.deg2rad(-30), np.deg2rad(0)]
+        #    self.plan_cartesian_path("start_frame", pos)
                 
 
 
