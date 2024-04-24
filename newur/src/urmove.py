@@ -52,16 +52,35 @@ def all_close(goal, actual, tolerance):
     return True
 
 class arucoObject():
-    def __init__(self, ids, pos, quat, boardType=""):
+    def __init__(self, ids, pos, quat, boardNumber = 0):
         self.ids = ids
         self.pos = pos
         self.quat = quat
-        self.boardType = boardType
+        self.boardNumber = boardNumber
         self.button= []
         self.anchorUsed = 0
+        self.source_point = PoseStamped()
+        self.target_point = PoseStamped()
+        self.target_frame = "button_frame"
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        self.button_locations()
 
     def button_locations(self):
-        pass
+        self.source_point.header.frame_id = "base_link"
+        self.source_point.pose.position.x = self.pos[0]
+        self.source_point.pose.position.y = self.pos[1]
+        self.source_point.pose.position.z = self.pos[2]
+
+        self.source_point.pose.orientation.x = self.quat[0]
+        self.source_point.pose.orientation.y = self.quat[1]
+        self.source_point.pose.orientation.z = self.quat[2]
+        self.source_point.pose.orientation.w = self.quat[3]
+
+        transform = self.tf_buffer.lookup_transform(self.target_frame, "base_link", rospy.Time(), rospy.Duration(1.0))
+        self.target_point = self.tf_buffer.transform(self.source_point, self.target_frame)
 
 
 class MoveGroupPythonInterface(object):
@@ -82,6 +101,10 @@ class MoveGroupPythonInterface(object):
         ## for getting, setting, and updating the robot's internal understanding of the
         ## surrounding world:
         self.scene = moveit_commander.PlanningSceneInterface()
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+       
         ## Instantiate a `MoveGroupCommander`_ object.  This object is an interface
         ## to a planning group (group of joints).  In this tutorial the group is the primary
         ## arm joints in the UR robot, so we set the group's name to "ur_arm".
@@ -93,10 +116,17 @@ class MoveGroupPythonInterface(object):
         
         self.large_list_saved = []
         self.small_list_saved = []
+        self.board_buttons = []
         self.button_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         self.largearuco = aruco()
         self.smallaruco = aruco()
         self.search_state = 1
+
+        #Competition variables 
+        self.button_string = "1985"
+
+        self.gohome()
+        self.publish_fixed_frame(frame_name="button_frame", target_frame="end_effector_link")
         
         # Receives the data from the large scan aruco
         rospy.Subscriber("/aruco_data", aruco, self.aruco_callback)
@@ -115,8 +145,6 @@ class MoveGroupPythonInterface(object):
         print(robot.get_current_state())
         print("")
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.end_effector_frame = "end_effector_link"
 
@@ -157,10 +185,6 @@ class MoveGroupPythonInterface(object):
     def gripper_client(self, new_state):
         rospy.wait_for_service('gripper_state')
         try:
-            if new_state == "open":
-                rospy.set_param('/gripper_mesh_path', self.mesh_path_open)
-            else: 
-                rospy.set_param('/gripper_mesh_path', self.mesh_path_closed)
             state = rospy.ServiceProxy('gripper_state', gripperservice)
             resp = state(new_state)
             return resp
@@ -548,92 +572,85 @@ class MoveGroupPythonInterface(object):
 
         self.large_list_saved[-1].anchorUsed = 1
 
-    def search_movement(self):
-        if not self.large_list_saved:
-            current_pose = self.move_group.get_current_pose()
-            #print(current_pose)
-            if current_pose.pose.position.z < 0.20: 
-                print("Making the first move")
-                rospy.sleep(3)
-                pos=[0.0, -0.4 + current_pose.pose.position.z, 0.0, 
-                np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
-                self.plan_cartesian_path("start_frame", pos)
-            if current_pose.pose.position.z < 0.41:
-                print("Making the seconds move")
-                rospy.sleep(3)
-                pos=[-0.05, -0.4 + current_pose.pose.position.z, -0.10, 
-                    np.deg2rad(0), np.deg2rad(15), np.deg2rad(0)]
-                self.plan_cartesian_path("start_frame", pos)
-
-            start_joints = self.move_group.get_current_joint_values()
-            joints = start_joints
-            joints[3] = joints[3] - np.deg2rad(20)
-            self.go_to_joint_state(joints)
-            joints = start_joints
-            joints[3] = joints[3] + np.deg2rad(20)
-            self.go_to_joint_state(joints)
-            joints = start_joints
-            joints[3] = joints[3] + np.deg2rad(20)
-            self.go_to_joint_state(joints)
-            joints = start_joints
-            joints[3] = joints[3] - np.deg2rad(20)
-            self.go_to_joint_state(joints)
-            joints = start_joints
-            self.go_to_joint_state(joints)
-        
-        else: 
-            current_pose = self.move_group.get_current_pose()
-            if current_pose.pose.position.z < 0.45 \
-                and current_pose.pose.position.z > 0.13:
-                print(current_pose) 
-                print("Moving Down")
-                rospy.sleep(3)
-                pos=[0.0, 0.5, -0.05, 
-                np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
-                self.plan_cartesian_path("anchor", pos)
-
-             
-    
-            
-
-                                                    
-    def check_marker(self):
-        try:
-            while len(self.large_list_saved) < 9:
-                # Find and append found arucos for the button board
-                if len(self.large_list_saved) > 0 and self.large_list_saved[-1].anchorUsed == 0 and self.large_list_saved[-1].ids in self.button_ids:
-                    self.match_aruco()
-
-                else:
-                    self.search_movement()
-        except KeyboardInterrupt:
-            return
-                    
-                
-
-    def buttonTask(self):
-        self.define_board()
         
     def define_board(self): 
         # Search for aruco 
         # when found save id and position as object in object in the lists 
         # search again '
-        self.publish_fixed_frame(frame_name="start_frame", target_frame="end_effector_link")
-        self.check_marker()
+        grid_buttons = []
+        x = -0.02 
+        y = -0.04
+        pos = [0, 0, 0, 0, 0, 0]
+        while len(self.large_list_saved) < 2:
+            pos[1] = pos[1] + y
+            self.plan_cartesian_path("button_frame", pos)
+            
+        while len(self.large_list_saved) < 3: 
+            pos[0] = pos[0] + x
+            self.plan_cartesian_path("button_frame", pos)
+
+        yLength = abs(self.large_list_saved[1].target_point.pose.position.y) - abs(self.large_list_saved[0].target_point.pose.position.y)
+        xLength = abs(self.large_list_saved[2].target_point.pose.position.x) - abs(self.large_list_saved[1].target_point.pose.position.x)
         
+        boardNumber = 0
+
+        for i in range(3):
+            for j in range(3):
+                x = j * xLength
+                y = i * yLength
+                print(x, y)
+
+                boardNumber += 1
+
+                pos = [-xLength + x, -yLength + y, 0, 0, 0, 0]
+                self.plan_cartesian_path("button_frame", pos)
+                if self.board_buttons == []:
+                    if self.largearuco.ids > 0: 
+                            self.board_buttons.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, boardNumber=boardNumber))
+                elif all(obj.ids != self.largearuco.ids for obj in self.board_buttons):
+                    self.board_buttons.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, boardNumber=boardNumber))
+        print(len(self.board_buttons))
+
+    def clickButton(self, bstring):
+        for j in range(len(bstring)):
+            current_id_list = []
+            depth_list = []
+            currentTarget = bstring[j]
+            currentTarget = int(currentTarget)
+            self.gripper_client(self.gripperOpen)
+            for i in self.board_buttons:
+                # If the first target matches the ArUco ID in the array
+                # then go to the location of the ArUco ID
+                # with 5 cm distance on the Z-axis
+                if currentTarget == i.ids:
+                    pos = [i.target_point.pose.position.x, i.target_point.pose.position.y, i.target_point.pose.position.z - 0.1, 0, 0, 0]
+                    self.plan_cartesian_path("button_frame", pos)
+                    while len(current_id_list) < 3:
+                        if self.largearuco.ids != 0:
+                            current_id_list.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
+                            z = current_id_list[len(current_id_list)-1].target_point.pose.position.z
+                            depth_list.append(z)
+                    depth_median = np.median(depth_list)
+                    print(depth_list)
+                    print(depth_median)
+                    pos[1] = pos[1] + 0.05
+                    self.plan_cartesian_path("button_frame", pos)
+                    self.gripper_client(self.gripperClosed)
+                    pos[2] = depth_median - 0.027
+                    self.plan_cartesian_path("button_frame", pos)
+                    pos[2] = depth_median - 0.1
+                    self.plan_cartesian_path("button_frame", pos)
+
+    def buttonTask(self):
+        self.define_board()
+        self.clickButton(self.button_string)
 
     def setupEnv(self):
         # define the table for no collision
         self.add_box(object_name="table")
-        #self.gohome()
+        
         # Generate and go to random start pose relative to the board
-        #generated_pose = self.generate_home_pose()
-        #self.go_to_pose_goal(generated_pose)
-        #distance_pose = [-0.01, -0.01, 0.4,
-        #     np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
-        #self.go_to_pose_goal(distance_pose)
 
-        # Search for arucos to define board
         
 
 
@@ -645,10 +662,10 @@ def main():
 
         move_node.buttonTask()
 
-        home = [-0.34, -0.34, 0.287,
-             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
-        input("============ Press `Enter` to vi prøver ...")
-        move_node.go_to_pose_goal(home)
+        #home = [-0.34, -0.34, 0.287,
+        #     np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
+        #input("============ Press `Enter` to vi prøver ...")
+        #move_node.go_to_pose_goal(home)
 
         
 
