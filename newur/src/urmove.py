@@ -547,55 +547,9 @@ class MoveGroupPythonInterface(object):
         #self.move_relative_to_frame("anchor", pos) 
 
         self.large_list_saved[-1].anchorUsed = 1
-
-    def search_movement(self):
-        if not self.large_list_saved:
-            current_pose = self.move_group.get_current_pose()
-            #print(current_pose)
-            if current_pose.pose.position.z < 0.20: 
-                print("Making the first move")
-                rospy.sleep(3)
-                pos=[0.0, -0.4 + current_pose.pose.position.z, 0.0, 
-                np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
-                self.plan_cartesian_path("start_frame", pos)
-            if current_pose.pose.position.z < 0.41:
-                print("Making the seconds move")
-                rospy.sleep(3)
-                pos=[-0.05, -0.4 + current_pose.pose.position.z, -0.10, 
-                    np.deg2rad(0), np.deg2rad(15), np.deg2rad(0)]
-                self.plan_cartesian_path("start_frame", pos)
-
-            start_joints = self.move_group.get_current_joint_values()
-            joints = start_joints
-            joints[3] = joints[3] - np.deg2rad(20)
-            self.go_to_joint_state(joints)
-            joints = start_joints
-            joints[3] = joints[3] + np.deg2rad(20)
-            self.go_to_joint_state(joints)
-            joints = start_joints
-            joints[3] = joints[3] + np.deg2rad(20)
-            self.go_to_joint_state(joints)
-            joints = start_joints
-            joints[3] = joints[3] - np.deg2rad(20)
-            self.go_to_joint_state(joints)
-            joints = start_joints
-            self.go_to_joint_state(joints)
-        
-        else: 
-            current_pose = self.move_group.get_current_pose()
-            if current_pose.pose.position.z < 0.45 \
-                and current_pose.pose.position.z > 0.13:
-                print(current_pose) 
-                print("Moving Down")
-                rospy.sleep(3)
-                pos=[0.0, 0.5, -0.05, 
-                np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]
-                self.plan_cartesian_path("anchor", pos)
-
-             
+         
     
             
-
                                                     
     def check_marker(self):
         try:
@@ -613,6 +567,7 @@ class MoveGroupPythonInterface(object):
 
     def buttonTask(self):
         self.define_board()
+
         
     def define_board(self): 
         # Search for aruco 
@@ -620,6 +575,81 @@ class MoveGroupPythonInterface(object):
         # search again '
         self.publish_fixed_frame(frame_name="start_frame", target_frame="end_effector_link")
         self.check_marker()
+
+    
+
+    def imuTask(self):
+
+        def compare_pos(obj):#definere nogle funktioner der bliver bruger længere nede
+            return obj.position
+        
+        def compare_ori(obj):
+            return obj.quaternion
+
+        x = -0.05
+        y = -0.05
+        z = -0.05
+        ry = -5
+        rx = -5
+        while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
+            pos = pos [0 + x, 0 + y, 0 + z, 0, 0 + np.deg2rad(ry), 0]
+            self.move_relative_to_frame("button_frame", pos)
+        
+
+        for objects in self.large_list_saved:#Laver et anchor point ved id 11
+            if objects.ids == 11:
+                anchor = objects
+        anchor.quat
+        euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+        anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+        
+        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+        
+        pos = [0, 0, -0.15, 0, 0, 0]
+        self.plan_cartesian_path("anchor", pos)
+
+        for i in range(3):#Scanner flere gange fra forskellige positioner 
+            scanlist = []
+            pos = [-0.03, -0.03, -0.17, 0, 0, 0]
+            self.plan_cartesian_path("anchor", pos)
+            scanlist.append(arucoObject(self.largearuco.position, self.largearuco.quaternion))
+            pos = [0.03, 0.03, -0.15, 0, 0, 0]
+            self.plan_cartesian_path("anchor", pos)
+            scanlist.append(arucoObject(self.largearuco.position, self.largearuco.quaternion))
+
+        #Bruger de funktioner der blev defineret tidligere til at finde median position og orientation
+        median_pos = np.median(scanlist, key=compare_pos)
+        median_qaut = np.median(scanlist, key=compare_ori)
+        #Laver et nyt anchor frame som forhåbeligt er mere præcist
+        anchor.pos = median_pos
+        anchor.quat = median_qaut
+        euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+        anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+        
+        #FIND IMUBOARD DONE (forhåbeligt)
+
+        while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
+            pos = pos [0 + x, 0 + y, 0 + z, 0 + np.deg2rad(rx), 0 + np.deg2rad(ry), 0]
+            self.move_relative_to_frame("anchor", pos)
+
+        #go to imu scan position(this postion can be predetermined and can be multiple)
+            #find imu match with id number
+                #match imu
+                #scan imu agian to get better position
+                #match best frame
+        pos = [-0.05, -0.15, -0.15, 0-np.deg2rad(90), 0-np.deg2rad(90), 0]
+        self.move_relative_to_frame("button_frame")
+        for i in range(3):
+
+        #pickup imu by matching tcp with best imu frame and displace it a bit(use a cartietian move)
+            #lift the imu the first couple of cm using cartetian move
+
+        #place in orientation
+            #go to a pose orthangonal to the generated board plane
+            #rotate the Imu to correct orientation
+            #push the Imu into the board using a cartetian move
+            #release Imu, use cartetian move to backup
         
 
     def setupEnv(self):
@@ -634,6 +664,8 @@ class MoveGroupPythonInterface(object):
         #self.go_to_pose_goal(distance_pose)
 
         # Search for arucos to define board
+
+
         
 
 
