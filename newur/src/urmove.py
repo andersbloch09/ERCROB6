@@ -52,7 +52,7 @@ def all_close(goal, actual, tolerance):
     return True
 
 class arucoObject():
-    def __init__(self, ids, pos, quat, boardNumber = 0):
+    def __init__(self, ids, pos, quat, tf_buffer, tf_listener, boardNumber = 0):
         self.ids = ids
         self.pos = pos
         self.quat = quat
@@ -62,9 +62,8 @@ class arucoObject():
         self.source_point = PoseStamped()
         self.target_point = PoseStamped()
         self.target_frame = "button_frame"
-
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = tf_buffer
+        self.tf_listener = tf_listener
 
         self.button_locations()
 
@@ -168,18 +167,18 @@ class MoveGroupPythonInterface(object):
             self.largearuco = msg
             if self.large_list_saved == []:
                 if self.largearuco.ids > 0: 
-                    self.large_list_saved.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
+                    self.large_list_saved.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener))
             elif all(obj.ids != self.largearuco.ids for obj in self.large_list_saved):
-                self.large_list_saved.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
+                self.large_list_saved.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener))
 
             
         if msg.ids in small_checker and msg.aruco_type == "Small":
             self.smallaruco = msg
             if self.small_list_saved == []:
                 if self.smallaruco.ids > 0:
-                  self.small_list_saved.append(arucoObject(self.smallaruco.ids, self.smallaruco.position, self.smallaruco.quaternion))
+                  self.small_list_saved.append(arucoObject(self.smallaruco.ids, self.smallaruco.position, self.smallaruco.quaternion, self.tf_buffer, self.tf_listener))
             elif all(obj.ids != self.smallaruco.ids for obj in self.small_list_saved):
-                self.small_list_saved.append(arucoObject(self.smallaruco.ids, self.smallaruco.position, self.smallaruco.quaternion))
+                self.small_list_saved.append(arucoObject(self.smallaruco.ids, self.smallaruco.position, self.smallaruco.quaternion, self.tf_buffer, self.tf_listener))
 
         
     def gripper_client(self, new_state):
@@ -544,19 +543,6 @@ class MoveGroupPythonInterface(object):
         current_joints = self.move_group.get_current_joint_values()
         return all_close(joint_goal, current_joints, 0.01)
 
-
-    def generate_home_pose(self):
-        home = [-0.34, -0.34, 0.287,
-             np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
-
-        random_horizontal = random.uniform(-0.05, 0.05)
-        random_vertical = random.uniform(-0.1, 0.1)
-
-        home[0] = home[0] + random_horizontal
-        home[1] = home[1] + (-1 * random_horizontal)
-        home[2] = home[2] + random_vertical
-
-        return home
         
     def match_aruco(self):
         anchor = self.large_list_saved[-1]
@@ -571,13 +557,12 @@ class MoveGroupPythonInterface(object):
         #self.move_relative_to_frame("anchor", pos) 
 
         self.large_list_saved[-1].anchorUsed = 1
-
+                    
         
     def define_board(self): 
         # Search for aruco 
         # when found save id and position as object in object in the lists 
-        # search again '
-        grid_buttons = []
+        # search again 
         x = -0.02 
         y = -0.04
         pos = [0, 0, 0, 0, 0, 0]
@@ -606,9 +591,9 @@ class MoveGroupPythonInterface(object):
                 self.plan_cartesian_path("button_frame", pos)
                 if self.board_buttons == []:
                     if self.largearuco.ids > 0: 
-                            self.board_buttons.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, boardNumber=boardNumber))
+                            self.board_buttons.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener, boardNumber=boardNumber))
                 elif all(obj.ids != self.largearuco.ids for obj in self.board_buttons):
-                    self.board_buttons.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, boardNumber=boardNumber))
+                    self.board_buttons.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener, boardNumber=boardNumber))
         print(len(self.board_buttons))
 
     def clickButton(self, bstring):
@@ -627,7 +612,7 @@ class MoveGroupPythonInterface(object):
                     self.plan_cartesian_path("button_frame", pos)
                     while len(current_id_list) < 3:
                         if self.largearuco.ids != 0:
-                            current_id_list.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion))
+                            current_id_list.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener))
                             z = current_id_list[len(current_id_list)-1].target_point.pose.position.z
                             depth_list.append(z)
                     depth_median = np.median(depth_list)
@@ -644,14 +629,94 @@ class MoveGroupPythonInterface(object):
     def buttonTask(self):
         self.define_board()
         self.clickButton(self.button_string)
+        self.publish_fixed_frame(frame_name="start_frame", target_frame="end_effector_link")
+
+    def imuTask(self):
+
+        def compare_pos(obj):#definere nogle funktioner der bliver bruger længere nede
+            return obj.position
+        
+        def compare_ori(obj):
+            return obj.quaternion
+    
+        self.gripper_client(self.gripperOpen)
+
+        x = -0.06
+        y = -0.03
+        ry = -5
+        pos = [0 + x, 0 + y, 0, 0, 0 + np.deg2rad(ry), 0]
+        while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
+            self.plan_cartesian_path("button_frame", pos)
+            pos[0] = pos[0] + x
+            pos[1] = pos[1] + y
+            pos[4] = pos[4] + np.deg2rad(ry)
+            rospy.sleep(1)
+        
+
+        for objects in self.large_list_saved:#Laver et anchor point ved id 11
+            if objects.ids == 11:
+                anchor = objects
+        
+        euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+        anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+        
+        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+        
+        pos = [0.03, 0.03, -0.1, 0, 0, 0]
+        self.plan_cartesian_path("anchor", pos)
+        scanlist = []
+        while len(scanlist) < 5:#Scanner flere gange fra forskellige positioner 
+            if self.large_list_saved[-1].ids == 11: 
+                scanlist.append(self.largearuco)
+                anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
+                euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+                anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+                self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+                self.plan_cartesian_path("anchor", pos)
+                rospy.sleep(1)
+            
+        print("DONE MATCHING!!!!!!!!!!!!!!!!!!!")
+        #Bruger de funktioner der blev defineret tidligere til at finde median position og orientation
+        #median_pos = np.median(scanlist, key=compare_pos)
+        #median_qaut = np.median(scanlist, key=compare_ori)
+        #Laver et nyt anchor frame som forhåbeligt er mere præcist
+        #anchor.pos = median_pos
+        #anchor.quat = median_qaut
+        #euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+        #anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+        #self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+        
+        #FIND IMUBOARD DONE (forhåbeligt)
+
+        #while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
+        #    pos = pos [0 + x, 0 + y, 0 + z, 0 + np.deg2rad(rx), 0 + np.deg2rad(ry), 0]
+        #    self.move_relative_to_frame("anchor", pos)
+#
+        ##go to imu scan position(this postion can be predetermined and can be multiple)
+        #    #find imu match with id number
+        #        #match imu
+        #        #scan imu agian to get better position
+        #        #match best frame
+        #pos = [-0.05, -0.15, -0.15, 0-np.deg2rad(90), 0-np.deg2rad(90), 0]
+        #self.move_relative_to_frame("button_frame")
+        #for i in range(3):
+#
+        ##pickup imu by matching tcp with best imu frame and displace it a bit(use a cartietian move)
+            #lift the imu the first couple of cm using cartetian move
+
+        #place in orientation
+            #go to a pose orthangonal to the generated board plane
+            #rotate the Imu to correct orientation
+            #push the Imu into the board using a cartetian move
+            #release Imu, use cartetian move to backup
+            #pass
+
 
     def setupEnv(self):
         # define the table for no collision
         self.add_box(object_name="table")
-        
-        # Generate and go to random start pose relative to the board
-
-        
+        rospy.sleep(2)
+        # Generate and go to random start pose relative to the board        
 
 
 def main():
@@ -660,7 +725,9 @@ def main():
 
         move_node.setupEnv()
 
-        move_node.buttonTask()
+        #move_node.buttonTask()
+
+        move_node.imuTask()
 
         #home = [-0.34, -0.34, 0.287,
         #     np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
