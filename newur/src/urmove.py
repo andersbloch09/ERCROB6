@@ -660,7 +660,7 @@ class MoveGroupPythonInterface(object):
         euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
         anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
         
-        self.publish_fixed_frame(new_anchor, "base_link",  anchor.pos, anchor.quat)
+        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
         
         pos = [0.03, 0.03, -0.1, 0, 0, 0]
         self.plan_cartesian_path("anchor", pos)
