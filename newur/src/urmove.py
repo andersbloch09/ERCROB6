@@ -547,22 +547,7 @@ class MoveGroupPythonInterface(object):
         #self.move_relative_to_frame("anchor", pos) 
 
         self.large_list_saved[-1].anchorUsed = 1
-         
-    
-            
-                                                    
-    def check_marker(self):
-        try:
-            while len(self.large_list_saved) < 9:
-                # Find and append found arucos for the button board
-                if len(self.large_list_saved) > 0 and self.large_list_saved[-1].anchorUsed == 0 and self.large_list_saved[-1].ids in self.button_ids:
-                    self.match_aruco()
 
-                else:
-                    self.search_movement()
-        except KeyboardInterrupt:
-            return
-                    
                 
 
     def buttonTask(self):
@@ -579,6 +564,39 @@ class MoveGroupPythonInterface(object):
     
 
     def imuTask(self):
+        x = -0.05
+        y = -0.05
+        z = -0.05
+        ry = -5
+        while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
+            pos = pos [0 + x, 0 + y, 0 + z, 0, 0 + np.deg2rad(ry), 0]
+            self.move_relative_to_frame("button_frame", pos)
+        
+        self.get_median_anchor(11, "IMUboard")
+        
+        #FIND IMUBOARD DONE (forhåbeligt)
+
+        #go to imu scan position(this postion can be predetermined and can be multiple)
+            #find imu match with id number
+                #match imu
+                #scan imu agian to get better position
+                #match best frame
+        pos = [-0.05, -0.15, -0.15, 0-np.deg2rad(90), 0-np.deg2rad(90), 0]
+        self.move_relative_to_frame("button_frame")
+
+        self.get_median_anchor(10, "IMUbox")
+
+        #pickup imu by matching tcp with best imu frame and displace it a bit(use a cartietian move)
+            #lift the imu the first couple of cm using cartetian move
+
+        #place in orientation
+            #go to a pose orthangonal to the generated board plane
+            #rotate the Imu to correct orientation
+            #push the Imu into the board using a cartetian move
+            #release Imu, use cartetian move to backup
+        
+
+    def get_median_anchor(self, id, new_anchor):
 
         def compare_pos(obj):#definere nogle funktioner der bliver bruger længere nede
             return obj.position
@@ -586,26 +604,16 @@ class MoveGroupPythonInterface(object):
         def compare_ori(obj):
             return obj.quaternion
 
-        x = -0.05
-        y = -0.05
-        z = -0.05
-        ry = -5
-        rx = -5
-        while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
-            pos = pos [0 + x, 0 + y, 0 + z, 0, 0 + np.deg2rad(ry), 0]
-            self.move_relative_to_frame("button_frame", pos)
-        
-
         for objects in self.large_list_saved:#Laver et anchor point ved id 11
-            if objects.ids == 11:
+            if objects.ids == id:
                 anchor = objects
-        anchor.quat
+
         euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
         anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
         
-        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+        self.publish_fixed_frame(new_anchor, "base_link",  anchor.pos, anchor.quat)
         
-        pos = [0, 0, -0.15, 0, 0, 0]
+        pos = [0, 0, -0.10, 0, 0, 0]
         self.plan_cartesian_path("anchor", pos)
 
         for i in range(3):#Scanner flere gange fra forskellige positioner 
@@ -625,32 +633,9 @@ class MoveGroupPythonInterface(object):
         anchor.quat = median_qaut
         euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
         anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
-        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+        self.publish_fixed_frame(new_anchor, "base_link",  anchor.pos, anchor.quat)
         
-        #FIND IMUBOARD DONE (forhåbeligt)
 
-        while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
-            pos = pos [0 + x, 0 + y, 0 + z, 0 + np.deg2rad(rx), 0 + np.deg2rad(ry), 0]
-            self.move_relative_to_frame("anchor", pos)
-
-        #go to imu scan position(this postion can be predetermined and can be multiple)
-            #find imu match with id number
-                #match imu
-                #scan imu agian to get better position
-                #match best frame
-        pos = [-0.05, -0.15, -0.15, 0-np.deg2rad(90), 0-np.deg2rad(90), 0]
-        self.move_relative_to_frame("button_frame")
-        for i in range(3):
-
-        #pickup imu by matching tcp with best imu frame and displace it a bit(use a cartietian move)
-            #lift the imu the first couple of cm using cartetian move
-
-        #place in orientation
-            #go to a pose orthangonal to the generated board plane
-            #rotate the Imu to correct orientation
-            #push the Imu into the board using a cartetian move
-            #release Imu, use cartetian move to backup
-        
 
     def setupEnv(self):
         # define the table for no collision
