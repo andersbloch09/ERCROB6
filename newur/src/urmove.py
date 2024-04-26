@@ -112,7 +112,7 @@ class MoveGroupPythonInterface(object):
         ## This interface can be used to plan and execute motions:
         self.group_name = "manipulator"
         self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
-        
+        self.move_group.set_planner_id("RRTstar")
         self.large_list_saved = []
         self.small_list_saved = []
         self.board_buttons = []
@@ -372,7 +372,7 @@ class MoveGroupPythonInterface(object):
         return False
 
 
-    def add_box(self, object_name, size=(2, 2, 0.01), position=[0, 0, 0], orientation=[0, 0, 0, 0]):
+    def add_box(self, object_name, size=(0.44, 0.44, 0.01), position=[0, 0, 0.03], orientation=[0, 0, 0, 0]):
         timeout=4
         ## Adding Objects to the Planning Scene
         ## First, we will create a box in the planning scene between the fingers:
@@ -380,7 +380,7 @@ class MoveGroupPythonInterface(object):
         box_pose.header.frame_id = "base"
         box_pose.pose.orientation.w = orientation[0]
         box_pose.pose.position.z = position[2]
-        self.scene.add_box(object_name, box_pose, size=(2, 2, 0.01))
+        self.scene.add_box(object_name, box_pose, size=size)
 
         return self.wait_for_state_update(box_is_known=True, timeout=timeout, box_name=object_name)
 
@@ -497,8 +497,11 @@ class MoveGroupPythonInterface(object):
         pose_goal.pose.position.y = pos[1]
         pose_goal.pose.position.z = pos[2]
         print(pos[0], pos[1], pos[2])
+        
+        transformed_point = self.tf_buffer.transform(pose_goal, "base_link")
+        
 
-        self.move_group.set_pose_target(pose_goal)
+        self.move_group.set_pose_target(transformed_point)
         
         print(pose_goal.header.frame_id)
         ## Now, we call the planner to compute the plan and execute it.
@@ -555,6 +558,7 @@ class MoveGroupPythonInterface(object):
         pos = [0, 0, -0.05, 0, 0, 0]
         self.plan_cartesian_path("anchor", pos)
         #self.move_relative_to_frame("anchor", pos) 
+        
 
         self.large_list_saved[-1].anchorUsed = 1
                     
@@ -632,17 +636,10 @@ class MoveGroupPythonInterface(object):
         self.publish_fixed_frame(frame_name="start_frame", target_frame="end_effector_link")
 
     def imuTask(self):
-
-        def compare_pos(obj):#definere nogle funktioner der bliver bruger længere nede
-            return obj.position
-        
-        def compare_ori(obj):
-            return obj.quaternion
-    
         self.gripper_client(self.gripperOpen)
 
-        x = -0.06
-        y = -0.03
+        x = -0.04
+        y = -0.02
         ry = -5
         pos = [0 + x, 0 + y, 0, 0, 0 + np.deg2rad(ry), 0]
         while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
@@ -650,7 +647,7 @@ class MoveGroupPythonInterface(object):
             pos[0] = pos[0] + x
             pos[1] = pos[1] + y
             pos[4] = pos[4] + np.deg2rad(ry)
-            rospy.sleep(1)
+            rospy.sleep(0.2)
         
 
         for objects in self.large_list_saved:#Laver et anchor point ved id 11
@@ -662,44 +659,59 @@ class MoveGroupPythonInterface(object):
         
         self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
         
-        pos = [0.03, 0.03, -0.1, 0, 0, 0]
-        self.plan_cartesian_path("anchor", pos)
+        pos = [0.0, 0.0, -0.1, 0, 0, 0]
+        self.move_relative_to_frame("anchor", pos)
         scanlist = []
-        while len(scanlist) < 5:#Scanner flere gange fra forskellige positioner 
+        while len(scanlist) < 3:#Scanner flere gange fra forskellige positioner 
             if self.large_list_saved[-1].ids == 11: 
                 scanlist.append(self.largearuco)
                 anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
                 euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
                 anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
                 self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
-                self.plan_cartesian_path("anchor", pos)
-                rospy.sleep(1)
+                self.move_relative_to_frame("anchor", pos)
+                rospy.sleep(0.2)
             
         print("DONE MATCHING!!!!!!!!!!!!!!!!!!!")
-        #Bruger de funktioner der blev defineret tidligere til at finde median position og orientation
-        #median_pos = np.median(scanlist, key=compare_pos)
-        #median_qaut = np.median(scanlist, key=compare_ori)
-        #Laver et nyt anchor frame som forhåbeligt er mere præcist
-        #anchor.pos = median_pos
-        #anchor.quat = median_qaut
-        #euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
-        #anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
-        #self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
-        
-        #FIND IMUBOARD DONE (forhåbeligt)
 
-        #while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
-        #    pos = pos [0 + x, 0 + y, 0 + z, 0 + np.deg2rad(rx), 0 + np.deg2rad(ry), 0]
-        #    self.move_relative_to_frame("anchor", pos)
-#
+        x = -0.03
+        scan_table_pose = [0, 0.05, -0.22, -np.deg2rad(89), 0, 0]
+        while all(obj.ids != 10 for obj in self.small_list_saved):#find board(can be done from buttonboard or scan)
+            scan_table_pose[0] = scan_table_pose[0] + x
+            self.move_relative_to_frame("button_frame", scan_table_pose)
+            rospy.sleep(0.2)
+
+        pos = [0.0, 0.0, -0.02, 0, 0, -np.deg2rad(89)]
+        scanlist = []
+        while len(scanlist) < 3:#Scanner flere gange fra forskellige positioner 
+            if self.small_list_saved[-1].ids == 10: 
+                scanlist.append(self.smallaruco)
+                anchor = arucoObject(self.smallaruco.ids, self.smallaruco.position, self.smallaruco.quaternion, self.tf_buffer, self.tf_listener)
+                euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+                anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+                self.publish_fixed_frame("IMU", "base_link",  anchor.pos, anchor.quat)
+                self.move_relative_to_frame("IMU", pos)
+                rospy.sleep(1)
+        
+        pickup_pos = [0, 0, 0.05, 0, 0, -np.deg2rad(89)]
+        self.plan_cartesian_path("IMU", pickup_pos)
+
+        self.gripper_client(self.gripperImuBox)
+
+        pos = [0.0, 0.0, -0.1, 0, 0, -np.deg2rad(89)]
+        self.plan_cartesian_path("IMU", pos)
+
+        self.gohome(gripper_state=self.gripperImuBox)
+
+        board_place_pos = [0.09, 0.17, -0.05, 0, 0, 0]
+        self.move_relative_to_frame("anchor", board_place_pos)
+
+
         ##go to imu scan position(this postion can be predetermined and can be multiple)
         #    #find imu match with id number
         #        #match imu
         #        #scan imu agian to get better position
         #        #match best frame
-        #pos = [-0.05, -0.15, -0.15, 0-np.deg2rad(90), 0-np.deg2rad(90), 0]
-        #self.move_relative_to_frame("button_frame")
-        #for i in range(3):
 #
         ##pickup imu by matching tcp with best imu frame and displace it a bit(use a cartietian move)
             #lift the imu the first couple of cm using cartetian move
@@ -740,6 +752,7 @@ def main():
     except rospy.ROSInterruptException:
         return
     except KeyboardInterrupt:
+        exit()
         return
 
 if __name__ == "__main__":
