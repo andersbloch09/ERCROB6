@@ -651,7 +651,7 @@ class MoveGroupPythonInterface(object):
         
 
         for objects in self.large_list_saved:#Laver et anchor point ved id 11
-            if objects.ids == 11:
+            if objects.ids == id:
                 anchor = objects
         
         euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
