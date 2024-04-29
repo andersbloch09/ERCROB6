@@ -6,6 +6,7 @@ import numpy as np
 import time
 from scannode.msg import aruco
 import tf2_ros
+import tf_conversions
 from geometry_msgs.msg import Point
 from tf2_geometry_msgs import PoseStamped
 from visualization_msgs.msg import Marker
@@ -205,9 +206,12 @@ class ArucoDetectorNode:
         marker.id = marker_id
         marker.header.frame_id = "base_link"
         marker.header.stamp = rospy.Time.now()
-        marker.type = Marker.SPHERE
+        marker.type = Marker.CUBE
         marker.action = Marker.ADD
-        marker.pose.orientation.w = 1.0
+        marker.pose.orientation.x = point_data.orientation.x
+        marker.pose.orientation.y = point_data.orientation.y
+        marker.pose.orientation.z = point_data.orientation.z
+        marker.pose.orientation.w = point_data.orientation.w
         marker.scale.x = 0.05  # Point size
         marker.scale.y = 0.05
         marker.scale.z = 0.05
@@ -230,12 +234,12 @@ class ArucoDetectorNode:
         text_marker.header.stamp = rospy.Time.now()
         text_marker.type = Marker.TEXT_VIEW_FACING
         text_marker.action = Marker.ADD
-        text_marker.pose.position.x = point_data.position.x
-        text_marker.pose.position.y = point_data.position.y
+        text_marker.pose.position.x = point_data.position.x + 0.02
+        text_marker.pose.position.y = point_data.position.y + 0.02
         text_marker.pose.position.z = point_data.position.z + 0.05  # Offset above the main marker
         text_marker.pose.orientation.w = 1.0
         text_marker.scale.z = 0.05  # Text size
-        text_marker.color.g = 1.0  # Red color
+        text_marker.color.g = 0.0  # Red color
         text_marker.color.a = 1.0  # Fully opaque
 
         # Set the text label

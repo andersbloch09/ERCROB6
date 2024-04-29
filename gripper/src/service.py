@@ -31,14 +31,14 @@ class GripperController:
         if state == "open":
             angleset = 180
         if state == "close":
-            angleset = 60
+            angleset = 57
         if state  == "imu":
-            angleset = 115
+            angleset = 110
         if state == "secretLid":
             angleset = 90
 
         angle = int(angleset)
-        if 60 <= angle <= 180:
+        if 57 <= angle <= 180:
             arduino.write((str(angle)).encode('utf-8'))
     
 

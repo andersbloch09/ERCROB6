@@ -123,6 +123,7 @@ class MoveGroupPythonInterface(object):
 
         #Competition variables 
         self.button_string = "1985"
+        self.imu_angle = 45
 
         self.gohome()
         self.publish_fixed_frame(frame_name="button_frame", target_frame="end_effector_link")
@@ -146,6 +147,16 @@ class MoveGroupPythonInterface(object):
 
 
         self.end_effector_frame = "end_effector_link"
+
+
+        # board sizes 
+        self.imu_board_height = 0.36
+        self.imu_board_width = 0.25
+        self.secret_board_height = 0.18
+        self.secret_board_width = 0.25
+        self.secret_box_depth = 0.10 
+        self.secret_box_height = 0.07
+        self.secret_box_width = 0.15
 
 
         # Different gripper states
@@ -372,13 +383,18 @@ class MoveGroupPythonInterface(object):
         return False
 
 
-    def add_box(self, object_name, size=(0.44, 0.44, 0.01), position=[0, 0, 0.03], orientation=[0, 0, 0, 0]):
+    def add_box(self, object_name, size=(0.8, 0.4, 0.01), position=[0.10, 0.10, 0.01], orientation=[0, 0, 0, 0], frame_id="base"):
         timeout=4
         ## Adding Objects to the Planning Scene
         ## First, we will create a box in the planning scene between the fingers:
         box_pose = geometry_msgs.msg.PoseStamped()
-        box_pose.header.frame_id = "base"
-        box_pose.pose.orientation.w = orientation[0]
+        box_pose.header.frame_id = frame_id
+        box_pose.pose.orientation.x = orientation[0]
+        box_pose.pose.orientation.y = orientation[1]
+        box_pose.pose.orientation.z = orientation[2]
+        box_pose.pose.orientation.w = orientation[3]
+        box_pose.pose.position.x = position[0]
+        box_pose.pose.position.y = position[1]
         box_pose.pose.position.z = position[2]
         self.scene.add_box(object_name, box_pose, size=size)
 
@@ -581,6 +597,74 @@ class MoveGroupPythonInterface(object):
         yLength = abs(self.large_list_saved[1].target_point.pose.position.y) - abs(self.large_list_saved[0].target_point.pose.position.y)
         xLength = abs(self.large_list_saved[2].target_point.pose.position.x) - abs(self.large_list_saved[1].target_point.pose.position.x)
         
+        # The lengths added are the know outer distance from centers of arucos
+        button_board_height = ((yLength * 2) + (0.04 + 0.095))
+        button_board_width = ((xLength * 2)  + 0.08)
+        button_board_displacement = (0.095-0.04) / 2
+        
+        # Now the boards are defined in rviz for collision checking
+        euler_button_board = tf_conversions.transformations.euler_from_quaternion([self.large_list_saved[0].target_point.pose.orientation.x, self.large_list_saved[0].target_point.pose.orientation.y, self.large_list_saved[0].target_point.pose.orientation.z, self.large_list_saved[0].target_point.pose.orientation.w])
+        button_board_quat = tf_conversions.transformations.quaternion_from_euler(euler_button_board[0], euler_button_board[1], euler_button_board[2] - np.deg2rad(90))
+        
+        
+        # Add the button board 
+        self.add_box(object_name="button_board_plane", 
+                     size=(button_board_height, button_board_width, 0.01)
+                    , position = (self.large_list_saved[0].target_point.pose.position.x, 
+                     self.large_list_saved[0].target_point.pose.position.y + button_board_displacement, 
+                     self.large_list_saved[0].target_point.pose.position.z) 
+                    , orientation = (button_board_quat[0], button_board_quat[1], button_board_quat[2], button_board_quat[3])
+                    , frame_id="button_frame")
+        
+        # we know the angle between the boards are 18 degrees
+        imu_board_x = (button_board_width/2) + ((self.imu_board_width/2) * np.cos(np.deg2rad(18)))
+        imu_board_y = (yLength + 0.04) - self.imu_board_height/2
+        imu_board_z = (self.imu_board_width/2) * np.sin(np.deg2rad(18))
+        imu_board_quat = tf_conversions.transformations.quaternion_from_euler(euler_button_board[0] - np.deg2rad(18), euler_button_board[1], euler_button_board[2] + np.deg2rad(90))
+        
+        # Add the imu_board 
+        self.add_box(object_name="imu_board_plane", 
+                     size=(self.imu_board_height, self.imu_board_width, 0.01)
+                    , position = (self.large_list_saved[0].target_point.pose.position.x - imu_board_x, 
+                     self.large_list_saved[0].target_point.pose.position.y - imu_board_y, 
+                     self.large_list_saved[0].target_point.pose.position.z - imu_board_z) 
+                    , orientation = (imu_board_quat[0], imu_board_quat[1], imu_board_quat[2], imu_board_quat[3])
+                    , frame_id="button_frame")
+
+        # we know the angle between the boards are 18 degrees
+        secret_board_x = (button_board_width/2) + ((self.secret_board_width/2) * np.cos(np.deg2rad(18)))
+        secret_board_y = (yLength + 0.095) - self.secret_board_height/2
+        secret_board_z = (self.secret_board_width/2) * np.sin(np.deg2rad(18))
+        secret_board_quat = tf_conversions.transformations.quaternion_from_euler(euler_button_board[0] + np.deg2rad(18), euler_button_board[1], euler_button_board[2] + np.deg2rad(90))
+        
+        # Add the secret_board 
+        self.add_box(object_name="secret_board_plane", 
+                     size=(self.secret_board_height, self.secret_board_width, 0.01)
+                    , position = (self.large_list_saved[0].target_point.pose.position.x + secret_board_x, 
+                     self.large_list_saved[0].target_point.pose.position.y + secret_board_y, 
+                     self.large_list_saved[0].target_point.pose.position.z - secret_board_z) 
+                    , orientation = (secret_board_quat[0], secret_board_quat[1], secret_board_quat[2], secret_board_quat[3])
+                    , frame_id="button_frame")
+
+        
+        # we know the angle between the boards are 18 degrees
+
+        secret_box_x = (button_board_width/2) + ((np.sqrt(((self.secret_box_depth/2+0.01)**2)+((self.secret_board_width/2)**2))) * np.cos(((np.sin((self.secret_box_depth/2+0.01)/(self.secret_board_width/2)) + np.deg2rad(18)))))
+        secret_box_y = (yLength + 0.095) - self.secret_board_height/2 - ((self.secret_board_height - self.secret_box_height)/2)
+        secret_box_z = (np.sin((np.sin((self.secret_box_depth/2+0.01)/(self.secret_board_width/2)) + np.deg2rad(18)))) * (np.sqrt(((self.secret_box_depth/2+0.01)**2)+((self.secret_board_width/2)**2)))
+        secret_box_quat = tf_conversions.transformations.quaternion_from_euler(euler_button_board[0] + np.deg2rad(18), euler_button_board[1], euler_button_board[2] + np.deg2rad(90))
+        
+
+        # Add the secret box 
+        self.add_box(object_name="secret_box_plane", 
+                     size=(self.secret_box_height, self.secret_box_width, self.secret_box_depth)
+                    , position = (self.large_list_saved[0].target_point.pose.position.x + secret_box_x, 
+                     self.large_list_saved[0].target_point.pose.position.y + secret_box_y, 
+                     self.large_list_saved[0].target_point.pose.position.z - secret_box_z) 
+                    , orientation = (secret_box_quat[0], secret_box_quat[1], secret_box_quat[2], secret_box_quat[3])
+                    , frame_id="button_frame")
+
+
         boardNumber = 0
 
         for i in range(3):
@@ -633,8 +717,7 @@ class MoveGroupPythonInterface(object):
     def buttonTask(self):
         self.define_board()
         self.clickButton(self.button_string)
-        self.publish_fixed_frame(frame_name="start_frame", target_frame="end_effector_link")
-
+    
     def imuTask(self):
         self.gripper_client(self.gripperOpen)
 
@@ -651,7 +734,7 @@ class MoveGroupPythonInterface(object):
         
 
         for objects in self.large_list_saved:#Laver et anchor point ved id 11
-            if objects.ids == id:
+            if objects.ids == 11:
                 anchor = objects
         
         euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
@@ -662,7 +745,7 @@ class MoveGroupPythonInterface(object):
         pos = [0.0, 0.0, -0.1, 0, 0, 0]
         self.move_relative_to_frame("anchor", pos)
         scanlist = []
-        while len(scanlist) < 3:#Scanner flere gange fra forskellige positioner 
+        while len(scanlist) < 2:#Scanner flere gange fra forskellige positioner 
             if self.large_list_saved[-1].ids == 11: 
                 scanlist.append(self.largearuco)
                 anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
@@ -672,7 +755,7 @@ class MoveGroupPythonInterface(object):
                 self.move_relative_to_frame("anchor", pos)
                 rospy.sleep(0.2)
             
-        print("DONE MATCHING!!!!!!!!!!!!!!!!!!!")
+        print("DONE MATCHING!")
 
         x = -0.03
         scan_table_pose = [0, 0.05, -0.22, -np.deg2rad(89), 0, 0]
@@ -681,7 +764,7 @@ class MoveGroupPythonInterface(object):
             self.move_relative_to_frame("button_frame", scan_table_pose)
             rospy.sleep(0.2)
 
-        pos = [0.0, 0.0, -0.02, 0, 0, -np.deg2rad(89)]
+        pos = [0.0, 0.0, -0.04, 0, 0, -np.deg2rad(89)]
         scanlist = []
         while len(scanlist) < 3:#Scanner flere gange fra forskellige positioner 
             if self.small_list_saved[-1].ids == 10: 
@@ -690,7 +773,7 @@ class MoveGroupPythonInterface(object):
                 euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
                 anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
                 self.publish_fixed_frame("IMU", "base_link",  anchor.pos, anchor.quat)
-                self.move_relative_to_frame("IMU", pos)
+                self.plan_cartesian_path("IMU", pos)
                 rospy.sleep(1)
         
         pickup_pos = [0, 0, 0.05, 0, 0, -np.deg2rad(89)]
@@ -706,6 +789,21 @@ class MoveGroupPythonInterface(object):
         board_place_pos = [0.09, 0.17, -0.05, 0, 0, 0]
         self.move_relative_to_frame("anchor", board_place_pos)
 
+        # Plance the imu on the velcro 
+        board_place_pos = [0.09, 0.17, -0.05, 0, 0, np.rad2deg(self.imu_angle)]
+        self.plan_cartesian_path("anchor", board_place_pos)
+
+        # The -0.025 is the distance the tcp changes when holding the imu relative to closed
+        board_place_pos = [0.09, 0.17, 0.0, 0, 0, np.rad2deg(self.imu_angle)]
+        self.plan_cartesian_path("anchor", board_place_pos)
+
+        self.gripper_client(self.gripperOpen)
+
+        # Plance the imu on the velcro 
+        board_place_pos = [0.09, 0.17, -0.1, 0, 0, np.rad2deg(self.imu_angle)]
+        self.plan_cartesian_path("anchor", board_place_pos)
+
+        self.gohome()
 
         ##go to imu scan position(this postion can be predetermined and can be multiple)
         #    #find imu match with id number
@@ -723,10 +821,14 @@ class MoveGroupPythonInterface(object):
             #release Imu, use cartetian move to backup
             #pass
 
+    def secretBoxTask(self):
+        pass
+
 
     def setupEnv(self):
         # define the table for no collision
-        self.add_box(object_name="table")
+        table_quat = tf_conversions.transformations.quaternion_from_euler(0, 0, np.deg2rad(45))
+        self.add_box(object_name="table", orientation=[table_quat[0], table_quat[1], table_quat[2], table_quat[3]])
         rospy.sleep(2)
         # Generate and go to random start pose relative to the board        
 
@@ -737,15 +839,11 @@ def main():
 
         move_node.setupEnv()
 
-        #move_node.buttonTask()
+        move_node.buttonTask()
 
         move_node.imuTask()
 
-        #home = [-0.34, -0.34, 0.287,
-        #     np.deg2rad(-89), np.deg2rad(0), np.deg2rad(135)]
-        #input("============ Press `Enter` to vi prøver ...")
-        #move_node.go_to_pose_goal(home)
-
+        move_node.secretBoxTask()
         
 
         print("Program is done")
