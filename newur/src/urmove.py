@@ -304,8 +304,8 @@ class MoveGroupPythonInterface(object):
         (plan, fraction) = self.move_group.compute_cartesian_path(
             waypoints, 0.01, 0.0  # waypoints to follow  # eef_step
         )  # jump_threshold
-        self.execute_plan(plan)
         # Note: We are just planning, not asking move_group to actually move the robot yet:
+        self.move_group.execute(plan, wait=True)
         
 
 
@@ -330,17 +330,6 @@ class MoveGroupPythonInterface(object):
         display_trajectory.trajectory.append(plan)
         # Publish
         display_trajectory_publisher.publish(display_trajectory)
-
-
-    def execute_plan(self, plan):
-        ## Executing a Plan
-        ## ^^^^^^^^^^^^^^^^
-        ## Use execute if you would like the robot to follow
-        ## the plan that has already been computed:
-        self.move_group.execute(plan, wait=True)
-
-        ## **Note:** The robot's current joint state must be within some tolerance of the
-        ## first waypoint in the `RobotTrajectory`_ or ``execute()`` will fail
 
 
     def wait_for_state_update(
@@ -586,13 +575,18 @@ class MoveGroupPythonInterface(object):
         x = -0.02 
         y = -0.04
         pos = [0, 0, 0, 0, 0, 0]
+        # we add exits to break the loop so the program one be a background issue
         while len(self.large_list_saved) < 2:
             pos[1] = pos[1] + y
             self.plan_cartesian_path("button_frame", pos)
+            if pos[1] < -0.30:
+                exit()
             
         while len(self.large_list_saved) < 3: 
             pos[0] = pos[0] + x
             self.plan_cartesian_path("button_frame", pos)
+            if pos[0] < -0.20: 
+                exit()
 
         yLength = abs(self.large_list_saved[1].target_point.pose.position.y) - abs(self.large_list_saved[0].target_point.pose.position.y)
         xLength = abs(self.large_list_saved[2].target_point.pose.position.x) - abs(self.large_list_saved[1].target_point.pose.position.x)
@@ -663,7 +657,7 @@ class MoveGroupPythonInterface(object):
                      self.large_list_saved[0].target_point.pose.position.z - secret_box_z) 
                     , orientation = (secret_box_quat[0], secret_box_quat[1], secret_box_quat[2], secret_box_quat[3])
                     , frame_id="button_frame")
-
+    
 
         boardNumber = 0
 
@@ -716,7 +710,7 @@ class MoveGroupPythonInterface(object):
 
     def buttonTask(self):
         self.define_board()
-        self.clickButton(self.button_string)
+        #self.clickButton(self.button_string)
     
     def imuTask(self):
         self.gripper_client(self.gripperOpen)
@@ -731,6 +725,8 @@ class MoveGroupPythonInterface(object):
             pos[1] = pos[1] + y
             pos[4] = pos[4] + np.deg2rad(ry)
             rospy.sleep(0.2)
+            if pos[0] < -0.35:
+                exit()
         
 
         for objects in self.large_list_saved:#Laver et anchor point ved id 11
@@ -822,7 +818,79 @@ class MoveGroupPythonInterface(object):
             #pass
 
     def secretBoxTask(self):
-        pass
+        # Start by defining the table location 
+        self.gohome()
+        x = 0.04
+        z = -0.02
+        scan_box_pose = [0, 0, 0, -np.deg2rad(45), np.deg2rad(18), 0]
+        while all(obj.ids != 12 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
+            scan_box_pose[0] = scan_box_pose[0] + x
+            scan_box_pose[2] = scan_box_pose[2] + z
+            self.move_relative_to_frame("button_frame", scan_box_pose)
+            rospy.sleep(1)
+            if scan_box_pose[0] > 0.35:
+                exit()
+
+        # We make a frame for the table on the table 
+        pos = [0.0, 0.0, -0.04, 0, 0, 0]
+        scanlist = []
+        while len(scanlist) < 3: 
+            if self.largearuco.ids == 12: 
+                scanlist.append(self.largearuco)
+                anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
+                euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+                anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+                self.publish_fixed_frame("secret_box_frame", "base_link",  anchor.pos, anchor.quat)
+                self.move_relative_to_frame("secret_box_frame", pos)
+                rospy.sleep(1)
+
+        # now we find the aruco marker on the table 
+        y = -0.01
+        scan_table_pose = [0, 0.0, -0.04, -np.deg2rad(80), 0, 0]
+        while all(obj.ids != 14 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
+            scan_table_pose[1] = scan_table_pose[1] + y
+            self.move_relative_to_frame("secret_box_frame", scan_table_pose)
+            rospy.sleep(1)
+            if scan_table_pose[1] < -0.30:
+                exit()
+
+        for objects in self.large_list_saved:
+            if objects.ids == 14:
+                anchor = objects
+                euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+                anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+                self.publish_fixed_frame("secret_table_frame", "base_link",  anchor.pos, anchor.quat)
+        
+        self.gohome()
+        
+        scanlist = []
+        pos = [0, 0.05, -0.05, np.deg2rad(20), 0, 0]
+        while len(scanlist) < 3: 
+            if any(obj.ids == 14 for obj in self.large_list_saved):
+                if self.largearuco.ids == 14: 
+                    scanlist.append(self.largearuco)
+                    anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
+                    euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+                    anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+                    self.publish_fixed_frame("secret_table_frame", "base_link",  anchor.pos, anchor.quat)
+                self.move_relative_to_frame("secret_table_frame", pos)
+                rospy.sleep(1)
+
+        for i in range(3):
+            # Now the lid will be grabed
+            pos = [0, -0.08, 0.05, np.deg2rad(20), 0, 0]
+            self.move_relative_to_frame("secret_box_frame", pos)
+
+        grab_lid_pose = [0, -0.055, 0.05, np.deg2rad(20), 0, 0]
+        self.plan_cartesian_path("secret_box_frame", grab_lid_pose)
+
+        self.gripper_client(self.gripperSecretLid)
+
+        grab_lid_pose = [0, -0.15, 0.05, np.deg2rad(20), 0, 0]
+        self.plan_cartesian_path("secret_box_frame", grab_lid_pose)
+
+        # Place lid on table
+
 
 
     def setupEnv(self):
@@ -841,7 +909,7 @@ def main():
 
         move_node.buttonTask()
 
-        move_node.imuTask()
+        #move_node.imuTask()
 
         move_node.secretBoxTask()
         
