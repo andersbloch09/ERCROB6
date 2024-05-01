@@ -138,14 +138,14 @@ class ArucoDetectorNode:
                         if tvec.any():
                             transformed_point_data = self.transform_point_to_global(self.point_data, quaternion)
                             #print("Point relative to base" ,transformed_point_data)
-                            if int(ids[i][0]) in self.large_list and int(ids[i][0]) not in self.id_list and int(ids[i][0]) != 0 and self.aruco_type == "Large":
+                            if int(ids[i][0]) in self.large_list and int(ids[i][0]) != 0 and self.aruco_type == "Large":
                                 marker_id = int(ids[i][0])
                                 self.display_marker(transformed_point_data, marker_id)
-                                self.id_list.append(int(ids[i][0]))
-                            if int(ids[i][0]) in self.small_list and int(ids[i][0]) not in self.id_list and int(ids[i][0]) != 0 and self.aruco_type == "Small":
+
+                            if int(ids[i][0]) in self.small_list and int(ids[i][0]) != 0 and self.aruco_type == "Small":
                                 marker_id = int(ids[i][0])
                                 self.display_marker(transformed_point_data, marker_id)
-                                self.id_list.append(int(ids[i][0]))
+
                             data.position = [transformed_point_data.position.x, transformed_point_data.position.y, transformed_point_data.position.z]
                             data.ids = int(ids[i][0])
                             data.quaternion = [transformed_point_data.orientation.x,
@@ -246,7 +246,8 @@ class ArucoDetectorNode:
         text_marker.text = str(marker.id)
 
         # Publish the text Marker message
-        self.marker_pub.publish(text_marker)
+        self.marker_pub.publish(text_marker)        
+
 
 if __name__ == '__main__':
     try:
