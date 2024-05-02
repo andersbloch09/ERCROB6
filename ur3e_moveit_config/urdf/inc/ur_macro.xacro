@@ -338,7 +338,7 @@
       <visual>
         <origin xyz="-0.079 0.032 -0.0462" rpy="0 -3.141592653589793 3.141592653589793"/>
         <geometry>
-          <mesh filename="package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_part_open.stl"/> <!-- Replace path/to/end_effector.stl with the actual path -->
+          <mesh filename="package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_part_v2_added_more_to_camera.stl"/> <!-- Replace path/to/end_effector.stl with the actual path -->
         </geometry>
         <material name="end_effector_material">
           <color rgba="0.4901961 0.6784314 0.8 1"/> <!-- Example: light gray color -->
@@ -347,7 +347,7 @@
       <collision>
         <origin xyz="-0.079 0.032 -0.0462" rpy="0 -3.141592653589793 3.141592653589793"/>
         <geometry>
-          <mesh filename="package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_part_open.stl"/> <!-- Same mesh file used for collision -->
+          <mesh filename="package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_part_v2_added_more_to_camera.stl"/> <!-- Same mesh file used for collision -->
         </geometry>
       </collision>
       <inertial>
