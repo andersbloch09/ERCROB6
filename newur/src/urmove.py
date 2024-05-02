@@ -187,6 +187,7 @@ class MoveGroupPythonInterface(object):
         self.mesh_path_open = "package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_part_open.stl"
         self.mesh_path_closed = "package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_closed.stl"
 
+
     def aruco_callback(self, msg):
         #rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}, rotation_matrix={}, aruco_size={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids, msg.rotation_matrix, msg.aruco_type))
         # This function will be called whenever a new largescan or smallscan message is received
@@ -219,6 +220,7 @@ class MoveGroupPythonInterface(object):
             return resp
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
+
 
     def go_to_joint_state(self, joints):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -475,7 +477,8 @@ class MoveGroupPythonInterface(object):
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             rospy.logerr("Failed to lookup transform: %s", str(e))
             return None
-        
+
+
     def publish_fixed_frame(self, frame_name, target_frame, pos=[0, 0, 0], quat = [0, 0, 0, 0]):
         tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
         transform = self.get_transform(target_frame)
@@ -494,6 +497,7 @@ class MoveGroupPythonInterface(object):
         transform.header.stamp = rospy.Time.now()
         tf_broadcaster.sendTransform(transform)
         rospy.sleep(1)
+
 
     def move_relative_to_frame(self, frame_id, pos=[0, 0, 0,
              np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]):
@@ -538,7 +542,7 @@ class MoveGroupPythonInterface(object):
         current_pose = self.move_group.get_current_pose()
         return all_close(pose_goal, current_pose, 0.01), success
 
-    
+
     def gohome(self, gripper_state = "open"):
         self.gripper_client(gripper_state)
         homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
@@ -564,23 +568,57 @@ class MoveGroupPythonInterface(object):
         current_joints = self.move_group.get_current_joint_values()
         return all_close(joint_goal, current_joints, 0.01), success
 
+  
+    def match_aruco(self, id, aruco_size, frame_name, pos=[0, 0, -0.05, 0, 0, 0]):
         
-    def match_aruco(self):
-        anchor = self.large_list_saved[-1]
-        anchor.quat
-        euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
-        anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
-        
-        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
-        
-        pos = [0, 0, -0.05, 0, 0, 0]
-        self.plan_cartesian_path("anchor", pos)
-        #self.move_relative_to_frame("anchor", pos) 
-        
+        if aruco_size == "small":
+            aruco_list = self.small_list_saved
+            aruco = self.smallaruco
+        elif aruco_size == "large":
+            aruco_list = self.large_list_saved
+            aruco = self.largearuco
 
-        self.large_list_saved[-1].anchorUsed = 1
-                    
-        
+
+        scanlist = []
+        while len(scanlist) < 3:#Scanner flere gange fra forskellige positioner 
+            if aruco_list[-1].ids == id: 
+                scanlist.append(aruco)
+                anchor = arucoObject(aruco.ids, aruco.position, aruco.quaternion, self.tf_buffer, self.tf_listener)
+                euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
+                anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+                self.publish_fixed_frame(frame_name, "base_link",  anchor.pos, anchor.quat)
+                self.move_relative_to_frame(frame_name, pos)
+                rospy.sleep(0.2)
+              
+
+    def search_aruco(self, id, aruco_size,  frame_name, direction, pos=[0, 0, 0, 0, 0, 0]):
+        x = direction[0]
+        y = direction[1]
+        z = direction[2]
+        rx = direction[3]
+        ry = direction[4]
+        rz = direction[5]
+
+        if aruco_size == "small":
+            aruco_list = self.small_list_saved
+        elif aruco_size == "large":
+            aruco_list = self.large_list_saved
+
+        pos = [0, 0, 0, 0, 0, 0]
+        while all(obj.ids != id for obj in aruco_list):#find board(can be done from buttonboard or scan)
+            pos[0] = pos[0] + x
+            pos[1] = pos[1] + y
+            pos[4] = pos[4] + z
+            pos[0] = pos[0] + np.deg2rad(rx)
+            pos[0] = pos[0] + np.deg2rad(ry)
+            pos[0] = pos[0] + np.deg2rad(rz)
+            self.move_relative_to_frame(frame_name, pos)
+            rospy.sleep(0.2)
+
+            if pos[0][1][2] < np.abs(0.4):#Stops the code from going rampant if stopped from some reason, mostly here for convinience 
+                exit()
+
+ 
     def define_board(self): 
         # Search for aruco 
         # when found save id and position as object in object in the lists 
@@ -691,6 +729,7 @@ class MoveGroupPythonInterface(object):
                     self.board_buttons.append(arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener, boardNumber=boardNumber))
         print(len(self.board_buttons))
 
+
     def clickButton(self, bstring):
         for j in range(len(bstring)):
             current_id_list = []
@@ -722,27 +761,19 @@ class MoveGroupPythonInterface(object):
                     pos[2] = depth_median - 0.1
                     self.plan_cartesian_path("button_frame", pos)
 
+
     def buttonTask(self):
         self.define_board()
         self.clickButton(self.button_string)
-    
+
+
     def imuTask(self):
         self.gripper_client(self.gripperOpen)
 
-        x = -0.04
-        y = -0.02
-        ry = -5
-        pos = [0 + x, 0 + y, 0, 0, 0 + np.deg2rad(ry), 0]
-        while all(obj.ids != 11 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
-            self.plan_cartesian_path("button_frame", pos)
-            pos[0] = pos[0] + x
-            pos[1] = pos[1] + y
-            pos[4] = pos[4] + np.deg2rad(ry)
-            rospy.sleep(0.2)
-            if pos[0] < -0.4:
-                exit()
-        
 
+        # Searching for the IMU board.
+        self.search_aruco(11, "large", "button_frame", direction=[-0.04, -0.02, 0, 0, -5, 0])
+        
         for objects in self.large_list_saved:#Laver et anchor point ved id 11
             if objects.ids == 11:
                 anchor = objects
@@ -750,120 +781,87 @@ class MoveGroupPythonInterface(object):
         euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
         anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
         
-        self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
+        self.publish_fixed_frame("IMU_board", "base_link",  anchor.pos, anchor.quat)
         
-        pos = [0.0, 0.0, -0.1, 0, 0, 0]
-        self.move_relative_to_frame("anchor", pos)
-        scanlist = []
-        while len(scanlist) < 2:#Scanner flere gange fra forskellige positioner 
-            if self.large_list_saved[-1].ids == 11: 
-                scanlist.append(self.largearuco)
-                anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
-                euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
-                anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
-                self.publish_fixed_frame("anchor", "base_link",  anchor.pos, anchor.quat)
-                self.move_relative_to_frame("anchor", pos)
-                rospy.sleep(0.2)
-            
-        print("DONE MATCHING!")
 
-        x = -0.03
+        # Matching with the IMU_board and creating the frame IMU after each match
+        self.match_aruco(11, "large", "IMU_board", pos=[0, 0, -0.1, 0, 0, 0])
+
+        #print("DONE MATCHING!")
+
+        # Searching for the IMU
         scan_table_pose = [0, 0.05, -0.22, -np.deg2rad(89), 0, 0]
-        while all(obj.ids != 10 for obj in self.small_list_saved):#find board(can be done from buttonboard or scan)
-            scan_table_pose[0] = scan_table_pose[0] + x
-            self.move_relative_to_frame("button_frame", scan_table_pose)
-            rospy.sleep(0.2)
+        self.search_aruco(10, "small", "button_frame", scan_table_pose, direction=[-0.03, 0, 0, 0, 0, 0], )
 
-        pos = [0.0, 0.0, -0.1, 0, 0, -np.deg2rad(89)]
-        scanlist = []
-        while len(scanlist) < 3:#Scanner flere gange fra forskellige positioner 
-            if self.small_list_saved[-1].ids == 10: 
-                scanlist.append(self.smallaruco)
-                anchor = arucoObject(self.smallaruco.ids, self.smallaruco.position, self.smallaruco.quaternion, self.tf_buffer, self.tf_listener)
-                euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
-                anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
-                self.publish_fixed_frame("IMU", "base_link",  anchor.pos, anchor.quat)
-                self.plan_cartesian_path("IMU", pos)
-                rospy.sleep(1)
-        
+        # Matching with the IMU
+        self.match_aruco(10, "small", "IMU", pos=[0.0, 0.0, -0.1, 0, 0, -np.deg2rad(89)])
+
+        #Move down to and grab the IMU
         pickup_pos = [0, 0, 0.05, 0, 0, -np.deg2rad(89)]
         self.plan_cartesian_path("IMU", pickup_pos)
-
         self.gripper_client(self.gripperImuBox)
+
+
         # we add the imu as an object to avoid collisions and for visuals
         box_orientation = tf_conversions.transformations.quaternion_from_euler(0 , 0, np.deg2rad(90))
         self.add_box("imu_box", size=(0.1, 0.05, 0.05), position=[0, 0, -0.01], orientation=box_orientation, frame_id="end_effector_link")
         self.attach_box(box_name="imu_box")
 
+        # Pick up the IMU
         pos = [0.0, 0.0, -0.1, 0, 0, -np.deg2rad(89)]
         self.plan_cartesian_path("IMU", pos, avoidCollision=False)
 
+        # Asures that the robot moves to home before moving on
         success = False 
         while success == False: 
             allClose, success = self.gohome(gripper_state=self.gripperImuBox)
-            print(success)
+            #print(success)
+    
 
         board_place_pos = [0.09, 0.17, -0.05, 0, 0, 0]
-        self.move_relative_to_frame("anchor", board_place_pos)
+        self.move_relative_to_frame("IMU_board", board_place_pos)
 
         # Plance the imu on the velcro 
-        board_place_pos = [0.09, 0.17, -0.05, 0, 0, np.rad2deg(self.imu_angle)]
-        self.plan_cartesian_path("anchor", board_place_pos)
+        board_place_pos = [0.09, 0.17, -0.05, 0, 0, np.deg2rad(self.imu_angle)]
+        self.plan_cartesian_path("IMU_board", board_place_pos)
 
         # The -0.01 is the distance the tcp changes when holding the imu relative to closed
-        board_place_pos = [0.09, 0.17, -0.01, 0, 0, np.rad2deg(self.imu_angle)]
-        self.plan_cartesian_path("anchor", board_place_pos, avoidCollision = False)
-
+        board_place_pos = [0.09, 0.17, -0.01, 0, 0, np.deg2rad(self.imu_angle)]
+        self.plan_cartesian_path("IMU_board", board_place_pos, avoidCollision = False)
+        
+        # Release the IMU both physicly and sim
         self.gripper_client(self.gripperOpen)
         self.detach_box(box_name="imu_box")
 
         # Plance the imu on the velcro 
-        board_place_pos = [0.09, 0.17, -0.1, 0, 0, np.rad2deg(self.imu_angle)]
-        self.plan_cartesian_path("anchor", board_place_pos)
+        board_place_pos = [0.09, 0.17, -0.1, 0, 0, np.deg2rad(self.imu_angle)]
+        self.plan_cartesian_path("IMU_board", board_place_pos)
 
         self.gohome()
 
 
     def secretBoxTask(self):
-        # Start by defining the table location 
+
         self.gohome()
+
+        # Local variables, for easy changes and tweaks
         angle_to_box = 17
         box_lid_angle = 35
         table_lid_angle = 55
         secret_aruco_id = 0
-        x = 0.04
-        z = -0.02
+
+        # Start by seaching for the Secret box
         scan_box_pose = [0, 0, 0, -np.deg2rad(45), np.deg2rad(angle_to_box), 0]
-        while all(obj.ids != 12 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
-            scan_box_pose[0] = scan_box_pose[0] + x
-            scan_box_pose[2] = scan_box_pose[2] + z
-            self.move_relative_to_frame("button_frame", scan_box_pose)
-            rospy.sleep(1)
-            if scan_box_pose[0] > 0.35:
-                exit()
+        self.search_aruco(12, "large", "button_frame", scan_box_pose, direction=[0.04, 0, -0.02, 0, 0, 0])
+
+        # When The box is found match with the aruco and publish a frame
+        self.match_aruco(12, "large", "secret_box_frame", pos=[0.0, 0.0, -0.04, 0, 0, 0])
 
 
-        pos = [0.0, 0.0, -0.04, 0, 0, 0]
-        scanlist = []
-        while len(scanlist) < 3: 
-            if self.largearuco.ids == 12: 
-                scanlist.append(self.largearuco)
-                anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
-                euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
-                anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
-                self.publish_fixed_frame("secret_box_frame", "base_link",  anchor.pos, anchor.quat)
-                self.move_relative_to_frame("secret_box_frame", pos)
-                rospy.sleep(1)
-
-        # now we find the aruco marker on the table 
-        z = -0.01
+        # Now we find the aruco marker on the table
         scan_table_pose = [0, 0.0, -0.04, -np.deg2rad(80), 0, 0]
-        while all(obj.ids != 14 for obj in self.large_list_saved):#find board(can be done from buttonboard or scan)
-            scan_table_pose[2] = scan_table_pose[2] + z
-            self.move_relative_to_frame("secret_box_frame", scan_table_pose)
-            rospy.sleep(1)
-            if scan_table_pose[1] < -0.30:
-                exit()
+        self.search_aruco(14, "large", "secret_box_frame", scan_table_pose, direction=[0, 0, -0.01, 0, 0, 0]) 
+ 
                 
         for objects in self.large_list_saved:
             if objects.ids == 14:
@@ -871,34 +869,26 @@ class MoveGroupPythonInterface(object):
                 # The frame for the table is made
                 self.publish_fixed_frame("secret_table_frame", "base_link",  anchor.pos, anchor.quat)
         
-    
-        # we match the aruco 
+        
+        #!!!!!! Is this needed !!!!! 
+        #!!!!!! Is this needed !!!!!     
+        # We match the aruco id 14 (secret table aruco) this is done with a condition of ensuring success 
         pos = [anchor.target_point.pose.position.x, anchor.target_point.pose.position.y - 0.1, anchor.target_point.pose.position.z - 0.1, -np.deg2rad(box_lid_angle), 0, 0]
         success = False
         while success == False: 
             allClose, success = self.move_relative_to_frame("button_frame", pos)
-            print(success)
+            #print(success)
 
-        
-        scanlist = []
-        pos = [0, 0.1, -0.2, np.deg2rad(40), 0, 0]
-        while len(scanlist) < 3: 
-            if any(obj.ids == 14 for obj in self.large_list_saved):
-                if self.largearuco.ids == 14: 
-                    scanlist.append(self.largearuco)
-                    anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
-                    euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
-                    anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
-                    self.publish_fixed_frame("secret_table_frame", "base_link",  anchor.pos, anchor.quat)
-                self.move_relative_to_frame("secret_table_frame", pos)
-                rospy.sleep(1)
+        # We match with the secret table aruco
+        match_table_pos = [0, 0.1, -0.2, np.deg2rad(40), 0, 0]
+        self.match_aruco(14, "large", "secret_table_frame", match_table_pos)
 
-
+        # Tempoaroly finding id 12's position and orientation to move with respect to button_frame, as the planner had trouble with moving in relation to secret_box_frame
         for objects in self.large_list_saved:
                 if objects.ids == 12:
                     anchor = objects
 
-        # Now the lid will be grabed
+        # Now the lid will be grabed, this movement is required to succed
         pos = [anchor.target_point.pose.position.x + 0.02, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         success = False
         while success == False: 
@@ -910,7 +900,7 @@ class MoveGroupPythonInterface(object):
 
         self.gripper_client(self.gripperSecretLid)
 
-        # we add the lid as an object to avoid collisions
+        # We add the lid as an object to avoid collisions
         lid_orientation = tf_conversions.transformations.quaternion_from_euler(-np.deg2rad(table_lid_angle) , 0, 0)
         self.add_box("secret_lid", size=(0.15, 0.1, 0.005), position=[0, 0, -0.02], orientation=lid_orientation, frame_id="end_effector_link")
         self.attach_box(box_name="secret_lid")
@@ -975,7 +965,6 @@ class MoveGroupPythonInterface(object):
         self.clickButton(str(secret_aruco_id))
 
         self.gohome()
-
 
 
     def setupEnv(self):
