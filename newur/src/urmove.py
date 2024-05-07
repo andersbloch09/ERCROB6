@@ -130,7 +130,7 @@ class MoveGroupPythonInterface(object):
         self.search_state = 1
         
         #Competition variables 
-        self.button_string = "1985"
+        self.button_string = "2367"
         self.imu_angle = 45
 
         self.marker_change = rospy.Publisher("visualization_marker", Marker, queue_size=10)
@@ -753,7 +753,10 @@ class MoveGroupPythonInterface(object):
                     depth_median = np.median(depth_list)
                     print(depth_list)
                     print(depth_median)
-                    pos[1] = pos[1] + 0.05
+                    if i.boardNumber > 5:
+                        pos[1] = pos[1] + 0.037
+                    else:
+                        pos[1] = pos[1] + 0.05
                     self.plan_cartesian_path("button_frame", pos)
                     self.gripper_client(self.gripperClosed)
                     pos[2] = depth_median - 0.027
@@ -766,7 +769,7 @@ class MoveGroupPythonInterface(object):
         self.define_board()
         self.clickButton(self.button_string)
 
-
+#hej
     def imuTask(self):
         self.gripper_client(self.gripperOpen)
 
@@ -870,8 +873,6 @@ class MoveGroupPythonInterface(object):
                 self.publish_fixed_frame("secret_table_frame", "base_link",  anchor.pos, anchor.quat)
         
         
-        #!!!!!! Is this needed !!!!! 
-        #!!!!!! Is this needed !!!!!     
         # We match the aruco id 14 (secret table aruco) this is done with a condition of ensuring success 
         pos = [anchor.target_point.pose.position.x, anchor.target_point.pose.position.y - 0.1, anchor.target_point.pose.position.z - 0.1, -np.deg2rad(box_lid_angle), 0, 0]
         success = False
@@ -916,6 +917,7 @@ class MoveGroupPythonInterface(object):
         while success == False:
             allClose, success = self.move_relative_to_frame("secret_table_frame", place_lid_pos_above)
             print(success)
+        
         # Place the lid on the table
         place_lid_pos = [0, 0.13, -0.04, np.deg2rad(table_lid_angle), 0, np.deg2rad(89)]
         self.plan_cartesian_path("secret_table_frame", place_lid_pos)
