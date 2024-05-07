@@ -130,8 +130,9 @@ class MoveGroupPythonInterface(object):
         self.search_state = 1
         
         #Competition variables 
-        self.button_string = "1876"
-        self.imu_angle = 61
+        self.button_string = "5862"
+        self.imu_angle = 47
+
 
         self.marker_change = rospy.Publisher("visualization_marker", Marker, queue_size=10)
         
@@ -322,8 +323,8 @@ class MoveGroupPythonInterface(object):
         # translation.  We will disable the jump threshold by setting it to 0.0,
         # ignoring the check for infeasible jumps in joint space, which is sufficient
         # for this tutorial.
-        run_fration = 0
-        while run_fration == 0: 
+        run_fraction = 0
+        while run_fraction == 0: 
             plan_list = []
             fraction_list = []
             for i in range(3):
@@ -336,10 +337,11 @@ class MoveGroupPythonInterface(object):
 
             max_index = fraction_list.index(max(fraction_list))
             plan = plan_list[max_index]
-            run_fration = max(fraction_list)
-        print("Used fraction   ", run_fration)
+            run_fraction = max(fraction_list)
+            if run_fraction == 0: 
+                rospy.sleep(2)
 
-            
+        print("Used fraction   ", run_fraction)
         
         # Note: We are just planning, not asking move_group to actually move the robot yet:
         self.move_group.execute(plan, wait=True)
@@ -569,9 +571,17 @@ class MoveGroupPythonInterface(object):
         current_joints = self.move_group.get_current_joint_values()
         return all_close(joint_goal, current_joints, 0.01), success
 
-  
+    def frame_exists(self, frame_id):
+        try: 
+            self.tf_buffer.lookup_transform("base_link", frame_id, rospy.Time())
+            return True 
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            return False
+            
+
     def match_aruco(self, id, aruco_size, frame_name, pos=[0, 0, -0.05, 0, 0, 0]):
         scanlist = []
+        scan_num = 0
         while len(scanlist) < 3:#Scanner flere gange fra forskellige positioner 
             if aruco_size == "small":
                 aruco_list = self.small_list_saved
@@ -581,7 +591,7 @@ class MoveGroupPythonInterface(object):
                 aruco = self.largearuco
             
             if aruco_list[-1].ids == id: 
-                scanlist.append(aruco)
+                scanlist.append(scan_num)
                 anchor = arucoObject(aruco.ids, aruco.position, aruco.quaternion, self.tf_buffer, self.tf_listener)
                 euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
                 anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
@@ -774,7 +784,7 @@ class MoveGroupPythonInterface(object):
 
     def buttonTask(self):
         self.define_board()
-        #self.clickButton(self.button_string)
+        self.clickButton(self.button_string)
 
 
     def imuTask(self):
@@ -884,14 +894,22 @@ class MoveGroupPythonInterface(object):
                 self.publish_fixed_frame("secret_box_frame", "base_link",  anchor.pos, anchor.quat)
                 self.move_relative_to_frame("secret_box_frame", pos)
                 rospy.sleep(1)
+
+            # Note the frame flips because it somtimes scans another aruco but it will flip back
             elif any(obj.ids == 12 for obj in self.large_list_saved) and self.largearuco.ids != 12:
-                for objects in self.large_list_saved:
-                    if objects.ids == 12:
-                        anchor2 = objects
-                        euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor2.quat)
-                        anchor2.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
-                        self.publish_fixed_frame("secret_box_frame", "base_link",  anchor2.pos, anchor2.quat)
-                        self.move_relative_to_frame("secret_box_frame", pos)
+                if self.frame_exists("secret_box_frame"):
+                     self.move_relative_to_frame("secret_box_frame", pos)
+                     print("FRAME IS TRUE")
+                else: 
+                    for objects in self.large_list_saved:
+                        if objects.ids == 12:
+                            anchor2 = objects
+                            euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor2.quat)
+                            anchor2.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+                            self.publish_fixed_frame("secret_box_frame", "base_link",  anchor2.pos, anchor2.quat)
+                            self.move_relative_to_frame("secret_box_frame", pos)
+            
+
 
         # Now we find the aruco marker on the table
         scan_table_pose = [0, 0.0, -0.04, -np.deg2rad(80), 0, 0]
@@ -909,20 +927,22 @@ class MoveGroupPythonInterface(object):
         # We match the aruco id 14 (secret table aruco) this is done with a condition of ensuring success 
         pos = [anchor.target_point.pose.position.x, anchor.target_point.pose.position.y - 0.1, anchor.target_point.pose.position.z - 0.1, -np.deg2rad(box_lid_angle), 0, 0]
         success = False
-
         while success == False: 
-            allClose, success = self.move_relative_to_frame("button_frame", pos)
             if self.largearuco.ids == 14: 
                 anchor = arucoObject(self.largearuco.ids, self.largearuco.position, self.largearuco.quaternion, self.tf_buffer, self.tf_listener)
                 euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
                 anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
+                pos = [anchor.target_point.pose.position.x, anchor.target_point.pose.position.y - 0.1, anchor.target_point.pose.position.z - 0.1, -np.deg2rad(box_lid_angle), 0, 0]
                 self.publish_fixed_frame("secret_table_frame", "base_link",  anchor.pos, anchor.quat)
-                rospy.sleep(1)
+                rospy.sleep(0.5)
+            allClose, success = self.move_relative_to_frame("button_frame", pos)
+            rospy.sleep(1)
+            print(success)
             #print(success)
-
+        print("out of loop")
         # We match with the secret table aruco
         match_table_pos = [0, 0.1, -0.2, np.deg2rad(40), 0, 0]
-        self.match_aruco(14, "large", "secret_table_frame", match_table_pos)
+        self.match_aruco(14, "large", "secret_table_frame", pos=match_table_pos)
 
         # Tempoaroly finding id 12's position and orientation to move with respect to button_frame, as the planner had trouble with moving in relation to secret_box_frame
         for objects in self.large_list_saved:
@@ -930,13 +950,13 @@ class MoveGroupPythonInterface(object):
                     anchor = objects
 
         # Now the lid will be grabed, this movement is required to succed
-        pos = [anchor.target_point.pose.position.x + 0.02, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
+        pos = [anchor.target_point.pose.position.x + 0.015, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         success = False
         while success == False: 
             allClose, success = self.move_relative_to_frame("button_frame", pos)
             print(success)
 
-        grab_lid_pose = [anchor.target_point.pose.position.x + 0.02, anchor.target_point.pose.position.y - 0.075, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
+        grab_lid_pose = [anchor.target_point.pose.position.x + 0.015, anchor.target_point.pose.position.y - 0.075, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         self.plan_cartesian_path("button_frame", grab_lid_pose)
 
         self.gripper_client(self.gripperSecretLid)
@@ -946,7 +966,7 @@ class MoveGroupPythonInterface(object):
         self.add_box("secret_lid", size=(0.15, 0.1, 0.005), position=[0, 0, 0.0], orientation=lid_orientation, frame_id="end_effector_link")
         self.attach_box(box_name="secret_lid")
 
-        grab_lid_pose = [anchor.target_point.pose.position.x + 0.02, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
+        grab_lid_pose = [anchor.target_point.pose.position.x + 0.015, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         self.plan_cartesian_path("button_frame", grab_lid_pose)
 
         pick_up_joints = self.move_group.get_current_joint_values()
@@ -984,7 +1004,7 @@ class MoveGroupPythonInterface(object):
             allClose, success = self.go_to_joint_state(pick_up_joints)
 
         # We look for the secret id 
-        grab_lid_pose = [anchor.target_point.pose.position.x, anchor.target_point.pose.position.y - 0.13, anchor.target_point.pose.position.z - 0.04, -np.deg2rad(70), np.deg2rad(angle_to_box), 0]
+        grab_lid_pose = [anchor.target_point.pose.position.x - 0.03, anchor.target_point.pose.position.y - 0.08, anchor.target_point.pose.position.z, -np.deg2rad(65), np.deg2rad(angle_to_box + 5), 0]
         
         self.plan_cartesian_path("button_frame", grab_lid_pose)  
 
@@ -1008,16 +1028,16 @@ class MoveGroupPythonInterface(object):
 
         self.go_to_joint_state(pick_up_joints)
         
-        grab_lid_pose = [anchor.target_point.pose.position.x + 0.02, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
+        grab_lid_pose = [anchor.target_point.pose.position.x + 0.015, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.04, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         self.plan_cartesian_path("button_frame", grab_lid_pose)
 
-        grab_lid_pose = [anchor.target_point.pose.position.x + 0.02, anchor.target_point.pose.position.y - 0.06, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
+        grab_lid_pose = [anchor.target_point.pose.position.x + 0.015, anchor.target_point.pose.position.y - 0.06, anchor.target_point.pose.position.z + 0.04, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         self.plan_cartesian_path("button_frame", grab_lid_pose)
 
         self.gripper_client(self.gripperOpen)
         self.detach_box(box_name="secret_lid")
 
-        grab_lid_pose = [anchor.target_point.pose.position.x + 0.02, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
+        grab_lid_pose = [anchor.target_point.pose.position.x + 0.015, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.04, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         self.plan_cartesian_path("button_frame", grab_lid_pose)
 
         self.gohome()
@@ -1048,7 +1068,7 @@ def main():
 
         move_node.buttonTask()
 
-        #move_node.imuTask()
+        move_node.imuTask()
 
         move_node.secretBoxTask()
         
