@@ -130,8 +130,9 @@ class MoveGroupPythonInterface(object):
         self.search_state = 1
         
         #Competition variables 
-        self.button_string = "5862"
-        self.imu_angle = 47
+        self.button_string = "2193"
+        self.imu_angle = 60
+    
 
 
         self.marker_change = rospy.Publisher("visualization_marker", Marker, queue_size=10)
@@ -596,9 +597,10 @@ class MoveGroupPythonInterface(object):
                 euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
                 anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
                 self.publish_fixed_frame(frame_name, "base_link",  anchor.pos, anchor.quat)
-                self.move_relative_to_frame(frame_name, pos)
                 rospy.sleep(1)
+                self.move_relative_to_frame(frame_name, pos)
                 print("I AM MATCHING")
+            rospy.sleep(1)
               
 
     def search_aruco(self, id, aruco_size, frame_name, direction, pos=[0, 0, 0, 0, 0, 0]):
@@ -783,7 +785,7 @@ class MoveGroupPythonInterface(object):
         self.define_board()
         self.clickButton(self.button_string)
 
-#hej
+
     def imuTask(self):
         self.gripper_client(self.gripperOpen)
 
@@ -920,11 +922,7 @@ class MoveGroupPythonInterface(object):
                 anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
                 # The frame for the table is made
                 self.publish_fixed_frame("secret_table_frame", "base_link",  anchor.pos, anchor.quat)
-        
-        
-        #!!!!!! Is this needed !!!!! 
-        #!!!!!! Is this needed !!!!!     
-        # We match the aruco id 14 (secret table aruco) this is done with a condition of ensuring success 
+         
         pos = [anchor.target_point.pose.position.x, anchor.target_point.pose.position.y - 0.1, anchor.target_point.pose.position.z - 0.1, -np.deg2rad(box_lid_angle), 0, 0]
         success = False
         while success == False: 

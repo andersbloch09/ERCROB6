@@ -334,6 +334,7 @@
       <parent link="${prefix}flange"/>
       <child link="${prefix}tool0"/>
     </joint>
+  
     <link name="end_effector_link">
       <visual>
         <origin xyz="-0.079 0.032 -0.0462" rpy="0 -3.141592653589793 3.141592653589793"/>
@@ -356,7 +357,7 @@
         <inertia ixx="0.1" iyy="0.1" izz="0.1" ixy="0" ixz="0" iyz="0"/>
       </inertial>
     </link>
-
+  
     <!-- Connect the end effector to the last link of the robot arm -->
     <joint name="end_effector_joint" type="fixed">
       <parent link="tool0"/> <!-- Adjust link name accordingly -->
@@ -377,8 +378,7 @@
       <child link="camera_frame"/>
       <!-- Specify the transformation between the camera frame and the parent link -->
       <origin xyz="0 -0.065 -0.15" rpy="-0.2967059728 -0.0261799388 0"/>
-    </joint>
-
-
+    </joint> 
+  
   </xacro:macro>
 </robot>

@@ -19,6 +19,7 @@ import os
 
 
 
+
 def all_close(goal, actual, tolerance):
     """
     Convenience method for testing if the values in two lists are within a tolerance of each other.
@@ -261,54 +262,8 @@ class MoveGroupPythonInterface(object):
         return self.wait_for_state_update(box_is_known=True, timeout=timeout, box_name=object_name)
 
 
-
-    def move_relative_to_frame(self, frame_id, pos=[0, 0, 0,
-             np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]):
-        
-
-        pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
-        
-        #print("Current POSE!!!", self.move_group.get_current_pose())
-        #print("QUATONIONS POSE!!", pos_quaternion)
-        pose_goal = geometry_msgs.msg.PoseStamped()
-        pose_goal.header.frame_id = frame_id
-        pose_goal.pose.orientation.x = pos_quaternion[0]
-        pose_goal.pose.orientation.y = pos_quaternion[1]
-        pose_goal.pose.orientation.z = pos_quaternion[2]
-        pose_goal.pose.orientation.w = pos_quaternion[3]
-    
-        pose_goal.pose.position.x = pos[0]
-        pose_goal.pose.position.y = pos[1]
-        pose_goal.pose.position.z = pos[2]
-        print(pos[0], pos[1], pos[2])
-        
-        transformed_point = self.tf_buffer.transform(pose_goal, "base_link")
-        
-
-        self.move_group.set_pose_target(transformed_point)
-        
-        print(pose_goal.header.frame_id)
-        ## Now, we call the planner to compute the plan and execute it.
-        # `go()` returns a boolean indicating whether the planning and execution was successful.
-         
-        success = self.move_group.go(wait=True)
-
-        # Calling `stop()` ensures that there is no residual movement
-        self.move_group.stop()
-        # It is always good to clear your targets after planning with poses.
-        # Note: there is no equivalent function for clear_joint_value_targets().
-        self.move_group.clear_pose_targets()
-
-        # For testing:
-        # Note that since this section of code will not be included in the tutorials
-        # we use the class variable rather than the copied state variable
-        current_pose = self.move_group.get_current_pose()
-        return all_close(pose_goal, current_pose, 0.01), success
-
-
     def gohome(self):
-        homeJoints = [1.6631979942321777, -1.1095922750285645, -2.049259662628174,
-                  3.189222975368164, -0.6959036032306116, -3.1415]    
+        homeJoints = [0, -np.deg2rad(90), 0, -np.deg2rad(90), 0, 0]    
         
         joint_goal = self.move_group.get_current_joint_values()
     
@@ -332,11 +287,23 @@ class MoveGroupPythonInterface(object):
         return all_close(joint_goal, current_joints, 0.01), success
     
     def move_to_waypoints(self):
+        # Tiden det tager at lave movement 
+        # End-effector position under hele bevægelsen euclisk afstand 
+        # Sidste end-effector position 
+
+        # Go home
         self.gohome()
+        
         table_quat = tf_conversions.transformations.quaternion_from_euler(0, 0, np.deg2rad(45))
         self.add_box(object_name="table", orientation=[table_quat[0], table_quat[1], table_quat[2], table_quat[3]])
         time_list = []
         pose_list = []
+        distance_sum = 0  # Initialize the sum of euclidean distances
+        
+        # Get the initial pose
+        initial_pose = self.move_group.get_current_pose().pose
+        initial_position = [initial_pose.position.x, initial_pose.position.y, initial_pose.position.z]
+        
         # Iterate over each waypoint
         for i in range(len(self.positions)):
             print("Number of waypoints: ", i+1, "out of ", len(self.positions), "waypoints.")
@@ -347,8 +314,8 @@ class MoveGroupPythonInterface(object):
             # Measure the start time
             start_time = rospy.get_time()
             
-            # Move to the pose goal
-            self.go_to_pose_goal(pose_with_orientation, wait=True)
+            # Move to the pose goal without waiting
+            self.go_to_pose_goal(pose_with_orientation, wait=False)
             
             # Measure the end time and calculate elapsed time
             end_time = rospy.get_time()
@@ -376,11 +343,16 @@ class MoveGroupPythonInterface(object):
                 euler_angles[1],
                 euler_angles[2]
             ])
+            
+            # Calculate the euclidean distance between the current position and the initial position
+            current_position = [current_pose.position.x, current_pose.position.y, current_pose.position.z]
+            distance = np.linalg.norm(np.array(current_position) - np.array(initial_position))
+            distance_sum += distance
+            
             rospy.sleep(1)
 
-        # Create a DataFrame from the time and pose lists
-        data = {'Time (s)': time_list, 'TCP Pose': pose_list}
-        df = pd.DataFrame(data)
+            # Add the distance to the DataFrame
+            df.loc[i, 'Distance'] = distance
 
         # Get the current directory
         current_dir = os.getcwd()
@@ -390,12 +362,20 @@ class MoveGroupPythonInterface(object):
         os.chdir(script_dir)
 
         # Save the DataFrame to an Excel file
+        # Create a DataFrame to store the data
+        df = pd.DataFrame(columns=['Time', 'Position X', 'Position Y', 'Position Z', 'Roll', 'Pitch', 'Yaw', 'Distance'])
+        
+        # Iterate over each waypoint
+        for i in range(len(time_list)):
+            # Append the data to the DataFrame
+            df.loc[i] = [time_list[i], pose_list[i][0], pose_list[i][1], pose_list[i][2], pose_list[i][3], pose_list[i][4], pose_list[i][5], df['Distance'][i]]
+        
+        # Save the DataFrame to an Excel file
         df.to_excel('RRTConnect.xlsx', index=False)
 
         # Change the current directory back to the original directory
         os.chdir(current_dir)
 
-        return True
 
         
 
