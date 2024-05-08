@@ -977,6 +977,9 @@ class MoveGroupPythonInterface(object):
         while success == False:
             allClose, success = self.move_relative_to_frame("secret_table_frame", place_lid_pos_above)
             print(success)
+
+        place_lid_pos_above_joints = self.move_group.get_current_joint_values()
+
         # Place the lid on the table
         success = False 
         place_lid_pos = [0, 0.13, -0.06, np.deg2rad(table_lid_angle), 0, np.deg2rad(89)]
