@@ -9,6 +9,9 @@ import numpy as np
 import tf2_ros
 import tf_conversions
 from math import pi, dist, fabs, cos
+import actionlib
+from control_msgs.msg import FollowJointTrajectoryAction
+
 
 
 
@@ -76,6 +79,11 @@ class MoveGroupPythonInterface(object):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
        
+
+        # Initialize action client for trajectory execution
+        self.action_client = actionlib.SimpleActionClient('follow_joint_trajectory', FollowJointTrajectoryAction)
+        #self.action_client.wait_for_server()
+        rospy.sleep(1)
         ## Instantiate a `MoveGroupCommander`_ object.  This object is an interface
         ## to a planning group (group of joints).  In this tutorial the group is the primary
         ## arm joints in the UR robot, so we set the group's name to "ur_arm".
@@ -85,7 +93,7 @@ class MoveGroupPythonInterface(object):
         self.group_name = "manipulator"
         
         self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
-        # self.move_group.set_planner_id("RRTstar")
+        #self.move_group.set_planner_id("BiEST")
     
 
         ## Create a `DisplayTrajectory`_ ROS publisher which is used to display
@@ -118,9 +126,9 @@ class MoveGroupPythonInterface(object):
             [0.2, 0.02076992, 0.2035994],
             [0.2, -0.00295457, 0.24702693],
             [0.2, -0.14076836, 0.20613295]
-        ])
+])
 
-        # Orientations (roll, pitch, yaw)
+        # Orientations (roll, pitch ,yaw)
         self.orientations = np.array([
             [0, -0.36569745, -1.42682508],
             [0, 0.10977711, -2.71329267],
@@ -167,19 +175,31 @@ class MoveGroupPythonInterface(object):
         ## Now, we call the planner to compute the plan and execute it.
         # `go()` returns a boolean indicating whether the planning and execution was successful.
         success = self.move_group.go(wait)
+        tcp_poses = []
+        # Check if the move has finished
+        start_time = rospy.get_time()
+        while not all_close(pose_goal, self.move_group.get_current_pose().pose, 0.01):
+            # Save the TCP pose constantly
+            current_pose = self.move_group.get_current_pose().pose
+            tcp_poses.append([current_pose.position.x, current_pose.position.y, current_pose.position.z])
+            check_time = rospy.get_time()
+            if check_time - start_time > 20:
+                tcp_poses = []
+                break
+                
         # Calling `stop()` ensures that there is no residual movement
         self.move_group.stop()
         # It is always good to clear your targets after planning with poses.
         # Note: there is no equivalent function for clear_joint_value_targets().
         self.move_group.clear_pose_targets()
-
+        
+        print(all_close(pose_goal, self.move_group.get_current_pose().pose, 0.01))
 
         # For testing:
         # Note that since this section of code will not be included in the tutorials
         # we use the class variable rather than the copied state variable
         current_pose = self.move_group.get_current_pose().pose
-        return all_close(pose_goal, current_pose, 0.01)
-
+        return all_close(pose_goal, current_pose, 0.01), tcp_poses
 
     def display_trajectory(self, plan):
         # Copy class variables to local variables to make the web tutorials more clear.
@@ -261,6 +281,23 @@ class MoveGroupPythonInterface(object):
 
         return self.wait_for_state_update(box_is_known=True, timeout=timeout, box_name=object_name)
 
+    def attach_box(self, timeout=4, box_name="", eef_link="tool0"):
+        ## Attaching Objects to the Robot
+        ## ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ## Next, we will attach the box to the Panda wrist. Manipulating objects requires the
+        ## robot be able to touch them without the planning scene reporting the contact as a
+        ## collision. By adding link names to the ``touch_links`` array, we are telling the
+        ## planning scene to ignore collisions between those links and the box. For the UR
+        ## robot, we set ``grasping_group = 'hand'``. If you are using a different robot,
+        ## you should change this value to the name of your end effector group name.
+        grasping_group = "manipulator"
+        touch_links = self.robot.get_link_names(group=grasping_group)
+        self.scene.attach_box(eef_link, box_name, touch_links=touch_links)
+
+        # We wait for the planning scene to update.
+        return self.wait_for_state_update(
+            box_is_attached=True, box_is_known=False, timeout=timeout,
+        )
 
     def gohome(self):
         homeJoints = [0, -np.deg2rad(90), 0, -np.deg2rad(90), 0, 0]    
@@ -287,15 +324,17 @@ class MoveGroupPythonInterface(object):
         return all_close(joint_goal, current_joints, 0.01), success
     
     def move_to_waypoints(self):
+        df = pd.DataFrame(columns=['Time', 'Position X', 'Position Y', 'Position Z', 'Roll', 'Pitch', 'Yaw', 'Distance'])
+        self.add_box(object_name="gripper_box", size=(0.05, 0.05, 0.01), position=[0.0, 0.0, 0.01], orientation=[0, 0, 0, 0], frame_id="tool0")
+        self.attach_box(box_name="gripper_box")
         # Tiden det tager at lave movement 
         # End-effector position under hele bevægelsen euclisk afstand 
         # Sidste end-effector position 
-
         # Go home
-        self.gohome()
-        
         table_quat = tf_conversions.transformations.quaternion_from_euler(0, 0, np.deg2rad(45))
         self.add_box(object_name="table", orientation=[table_quat[0], table_quat[1], table_quat[2], table_quat[3]])
+        self.gohome()
+        
         time_list = []
         pose_list = []
         distance_sum = 0  # Initialize the sum of euclidean distances
@@ -303,7 +342,7 @@ class MoveGroupPythonInterface(object):
         # Get the initial pose
         initial_pose = self.move_group.get_current_pose().pose
         initial_position = [initial_pose.position.x, initial_pose.position.y, initial_pose.position.z]
-        
+        distance = 0
         # Iterate over each waypoint
         for i in range(len(self.positions)):
             print("Number of waypoints: ", i+1, "out of ", len(self.positions), "waypoints.")
@@ -315,7 +354,7 @@ class MoveGroupPythonInterface(object):
             start_time = rospy.get_time()
             
             # Move to the pose goal without waiting
-            self.go_to_pose_goal(pose_with_orientation, wait=False)
+            allClose, tcp_poses = self.go_to_pose_goal(pose_with_orientation, wait=False)
             
             # Measure the end time and calculate elapsed time
             end_time = rospy.get_time()
@@ -343,41 +382,30 @@ class MoveGroupPythonInterface(object):
                 euler_angles[1],
                 euler_angles[2]
             ])
+            distance_sum = 0
+            for i in range(1, len(tcp_poses)):
+                distance = np.linalg.norm(np.array([tcp_poses[i][0], tcp_poses[i][1], tcp_poses[i][2]]) - np.array([tcp_poses[i-1][0], tcp_poses[i-1][1], tcp_poses[i-1][2]]))
             
-            # Calculate the euclidean distance between the current position and the initial position
-            current_position = [current_pose.position.x, current_pose.position.y, current_pose.position.z]
-            distance = np.linalg.norm(np.array(current_position) - np.array(initial_position))
-            distance_sum += distance
+                distance_sum += distance
             
             rospy.sleep(1)
-
             # Add the distance to the DataFrame
-            df.loc[i, 'Distance'] = distance
-
+            df.loc[i, 'Distance'] = distance_sum
+        
         # Get the current directory
         current_dir = os.getcwd()
-
         # Change the current directory to the directory of the script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         os.chdir(script_dir)
-
-        # Save the DataFrame to an Excel file
-        # Create a DataFrame to store the data
-        df = pd.DataFrame(columns=['Time', 'Position X', 'Position Y', 'Position Z', 'Roll', 'Pitch', 'Yaw', 'Distance'])
-        
         # Iterate over each waypoint
         for i in range(len(time_list)):
-            # Append the data to the DataFrame
-            df.loc[i] = [time_list[i], pose_list[i][0], pose_list[i][1], pose_list[i][2], pose_list[i][3], pose_list[i][4], pose_list[i][5], df['Distance'][i]]
-        
-        # Save the DataFrame to an Excel file
-        df.to_excel('RRTConnect.xlsx', index=False)
+            df.iloc[i] = [time_list[i], pose_list[i][0], pose_list[i][1], pose_list[i][2], pose_list[i][3], pose_list[i][4], pose_list[i][5], df['Distance'].iloc[i]]
 
+        # Save the DataFrame to an Excel file
+        df.to_excel('chomp.xlsx', index=False)
         # Change the current directory back to the original directory
         os.chdir(current_dir)
 
-
-        
 
 def main():
     try:
