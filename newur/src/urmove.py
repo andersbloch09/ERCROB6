@@ -12,15 +12,11 @@ import transforms3d.euler as euler
 import tf2_ros
 import tf_conversions
 import random
-from std_msgs.msg import Empty
-from visualization_msgs.msg import Marker, MarkerArray
+from visualization_msgs.msg import Marker
 from tf2_geometry_msgs import PoseStamped
 from math import pi, dist, fabs, cos
 from scannode.msg import aruco
 from gripper.srv import gripperservice
-
-
-from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
 
 
@@ -54,12 +50,24 @@ def all_close(goal, actual, tolerance):
     return True
 
 class arucoObject():
-    def __init__(self, ids, pos, quat, tf_buffer, tf_listener, boardNumber = 0):
+    """
+    Represents an ArUco object.
+
+    Args:
+        ids (list): List of ArUco marker IDs.
+        pos (list): List of position coordinates [x, y, z].
+        quat (list): List of quaternion coordinates [x, y, z, w].
+        tf_buffer (tf2_ros.Buffer): Buffer for storing and retrieving transforms.
+        tf_listener (tf2_ros.TransformListener): Listener for retrieving transforms.
+        boardNumber (int, optional): Board number. Defaults to 0.
+    """
+
+    def __init__(self, ids, pos, quat, tf_buffer, tf_listener, boardNumber=0):
         self.ids = ids
         self.pos = pos
         self.quat = quat
         self.boardNumber = boardNumber
-        self.button= []
+        self.button = []
         self.anchorUsed = 0
         self.source_point = PoseStamped()
         self.target_point = PoseStamped()
@@ -80,9 +88,10 @@ class arucoObject():
         self.source_point.pose.orientation.z = self.quat[2]
         self.source_point.pose.orientation.w = self.quat[3]
 
-        transform = self.tf_buffer.lookup_transform(self.target_frame, "base_link", rospy.Time(), rospy.Duration(1.0))
+        transform = self.tf_buffer.lookup_transform(
+            self.target_frame, "base_link", rospy.Time(), rospy.Duration(1.0)
+        )
         self.target_point = self.tf_buffer.transform(self.source_point, self.target_frame)
-
 
 class MoveGroupPythonInterface(object):
     """MoveGroupPythonInterfaceTutorial"""
@@ -90,37 +99,29 @@ class MoveGroupPythonInterface(object):
     def __init__(self):
         super(MoveGroupPythonInterface, self).__init__()
 
-        ## First initialize `moveit_commander`_ and a `rospy`_ node:
+        # Initialize the moveit_commander and a ROS node
         moveit_commander.roscpp_initialize(sys.argv)
         rospy.init_node("move_group_python_interface", anonymous=True)
 
-        ## Instantiate a `RobotCommander`_ object. Provides information such as the robot's
-        ## kinematic model and the robot's current joint states
+        # Create a RobotCommander object to access robot's kinematic model and joint states
         self.robot = moveit_commander.RobotCommander()
 
-        ## Instantiate a `PlanningSceneInterface`_ object.  This provides a remote interface
-        ## for getting, setting, and updating the robot's internal understanding of the
-        ## surrounding world:
+        # Create a PlanningSceneInterface object to interact with the environment
         self.scene = moveit_commander.PlanningSceneInterface()
         
-        # Clear all objects from the planning scene
+        # Remove all objects from the planning scene
         self.scene.remove_attached_object()
         self.scene.remove_world_object()
         
+        # Setup the TF2 ROS buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
        
-        ## Instantiate a `MoveGroupCommander`_ object.  This object is an interface
-        ## to a planning group (group of joints).  In this tutorial the group is the primary
-        ## arm joints in the UR robot, so we set the group's name to "ur_arm".
-        ## If you are using a different robot, change this value to the name of your robot
-        ## arm planning group.
-        ## This interface can be used to plan and execute motions:
+        # Setup the MoveGroupCommander for controlling the robot's arm
         self.group_name = "manipulator"
-        
         self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
-        # self.move_group.set_planner_id("RRTstar")
         
+        # Initialize lists to save detected ArUco markers
         self.large_list_saved = []
         self.small_list_saved = []
         self.board_buttons = []
@@ -129,16 +130,17 @@ class MoveGroupPythonInterface(object):
         self.smallaruco = aruco()
         self.search_state = 1
         
-        #Competition variables 
+        # Variables for competition settings
         self.button_string = "2193"
         self.imu_angle = 60
-    
 
-
+        # Publisher for visualization markers in Rviz
         self.marker_change = rospy.Publisher("visualization_marker", Marker, queue_size=10)
         
+        # Move robot to home position
         self.gohome()
         
+        # Delete all markers in Rviz within a range
         for i in range(-15, 15):
             rospy.sleep(0.2)
             marker = Marker()
@@ -147,30 +149,28 @@ class MoveGroupPythonInterface(object):
             marker.action = Marker.DELETE
             self.marker_change.publish(marker)
 
+        # Publish a fixed frame transformation
         self.publish_fixed_frame(frame_name="button_frame", target_frame="end_effector_link")
         
-        # Receives the data from the large scan aruco
+        # Subscribe to ArUco marker data
         rospy.Subscriber("/aruco_data", aruco, self.aruco_callback)
 
-        ## Create a `DisplayTrajectory`_ ROS publisher which is used to display
-        ## trajectories in Rviz:
+        # Publisher for displaying planned trajectories in Rviz
         self.display_trajectory_publisher = rospy.Publisher(
             "/move_group/display_planned_path",
             moveit_msgs.msg.DisplayTrajectory,
             queue_size=20,
         )
         
-        # Sometimes for debugging it is useful to print the entire state of the
-        # robot:
+        # Print the current state of the robot for debugging
         print("============ Printing robot state")
         print(self.robot.get_current_state())
         print("")
 
-
+        # Define end effector frame
         self.end_effector_frame = "end_effector_link"
 
-
-        # board sizes 
+        # Define dimensions of various boards used in the setup
         self.imu_board_height = 0.36
         self.imu_board_width = 0.25
         self.secret_board_height = 0.18
@@ -179,21 +179,21 @@ class MoveGroupPythonInterface(object):
         self.secret_box_height = 0.07
         self.secret_box_width = 0.13
 
-
-        # Different gripper states
+        # Define different gripper states
         self.gripperOpen = "open"
         self.gripperClosed = "close"
         self.gripperImuBox = "imu"
         self.gripperSecretLid = "secretLid"
         
+        # Paths to mesh files for the gripper in different states
         self.mesh_path_open = "package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_part_open.stl"
         self.mesh_path_closed = "package://ur3e_moveit_config/meshes/ur3e/collision/full_assembly_closed.stl"
 
 
     def aruco_callback(self, msg):
-        #rospy.loginfo("Received ArUco data: x_distance={}, y_distance={}, z_distance={}, ids={}, rotation_matrix={}, aruco_size={}".format(msg.x_distance, msg.y_distance, msg.z_distance, msg.ids, msg.rotation_matrix, msg.aruco_type))
         # This function will be called whenever a new largescan or smallscan message is received
-        # Process the rself.move_group = move_groupeceived message here
+        # The functiom checks if the id is already known and if so it will not create a new object for the given ide. 
+        # It will only add it to the global class variable
         large_checker = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14]
         small_checker = [10, 13]
         if msg.ids in large_checker and msg.aruco_type == "Large":
@@ -215,6 +215,7 @@ class MoveGroupPythonInterface(object):
 
         
     def gripper_client(self, new_state):
+        # The function calls the gripper service to open or close the gripper
         rospy.wait_for_service('gripper_state')
         try:
             state = rospy.ServiceProxy('gripper_state', gripperservice)
@@ -225,14 +226,9 @@ class MoveGroupPythonInterface(object):
 
 
     def go_to_joint_state(self, joints):
-        # Copy class variables to local variables to make the web tutorials more clear.
-        # In practice, you should use the class variables directly unless you have a good
-        # reason not to.
-        move_group = self.move_group
-
         ## Planning to a Joint Goal
         # We get the joint values from the group and change some of the values:
-        joint_goal = move_group.get_current_joint_values()
+        joint_goal = self.move_group.get_current_joint_values()
         
         joint_goal[0] = joints[0]
         joint_goal[1] = joints[1]
@@ -243,53 +239,15 @@ class MoveGroupPythonInterface(object):
 
         # The go command can be called with joint values, poses, or without any
         # parameters if you have already set the pose or joint target for the group
-        success = move_group.go(joint_goal, wait=True)
+        success = self.move_group.go(joint_goal, wait=True)
 
         # Calling ``stop()`` ensures that there is no residual movement
-        move_group.stop()
-
-
-        # For testing:
-        current_joints = move_group.get_current_joint_values()
-        return all_close(joint_goal, current_joints, 0.01), success
-
-
-    def go_to_pose_goal(self, pose, wait=True):
-        ## Planning to a Pose Goal
-        ## ^^^^^^^^^^^^^^^^^^^^^^^
-        ## We can plan a motion for this group to a desired pose for the
-        ## end-effector:
-        
-        pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pose[3], pose[4], pose[5])
-        #print("Current POSE!!!", self.move_group.get_current_pose())
-        #print("QUATONIONS POSE!!", pos_quaternion)
-        pose_goal = geometry_msgs.msg.Pose()
-        pose_goal.orientation.x = pos_quaternion[0]
-        pose_goal.orientation.y = pos_quaternion[1]
-        pose_goal.orientation.z = pos_quaternion[2]
-        pose_goal.orientation.w = pos_quaternion[3]
-    
-        pose_goal.position.x = pose[0]
-        pose_goal.position.y = pose[1]
-        pose_goal.position.z = pose[2]
-        print(pose[0], pose[1], pose[2])
-        self.move_group.set_pose_target(pose_goal)
-
-        ## Now, we call the planner to compute the plan and execute it.
-        # `go()` returns a boolean indicating whether the planning and execution was successful.
-        success = self.move_group.go(wait)
-        # Calling `stop()` ensures that there is no residual movement
         self.move_group.stop()
-        # It is always good to clear your targets after planning with poses.
-        # Note: there is no equivalent function for clear_joint_value_targets().
-        self.move_group.clear_pose_targets()
 
 
         # For testing:
-        # Note that since this section of code will not be included in the tutorials
-        # we use the class variable rather than the copied state variable
-        current_pose = self.move_group.get_current_pose().pose
-        return all_close(pose_goal, current_pose, 0.01)
+        current_joints = self.move_group.get_current_joint_values()
+        return all_close(joint_goal, current_joints, 0.01), success
 
 
     def plan_cartesian_path(self, frame_name, pos, avoidCollision = True):
@@ -322,9 +280,9 @@ class MoveGroupPythonInterface(object):
         # We want the Cartesian path to be interpolated at a resolution of 1 cm
         # which is why we will specify 0.01 as the eef_step in Cartesian
         # translation.  We will disable the jump threshold by setting it to 0.0,
-        # ignoring the check for infeasible jumps in joint space, which is sufficient
-        # for this tutorial.
+        # ignoring the check for infeasible jumps in joint space.
         run_fraction = 0
+        # This checks if the has hit a fraction of 0, if so it will try to plan again
         while run_fraction == 0: 
             plan_list = []
             fraction_list = []
@@ -349,12 +307,6 @@ class MoveGroupPythonInterface(object):
 
 
     def display_trajectory(self, plan):
-        # Copy class variables to local variables to make the web tutorials more clear.
-        # In practice, you should use the class variables directly unless you have a good
-        # reason not to.
-        robot = self.robot
-        display_trajectory_publisher = self.display_trajectory_publisher
-
         ## Displaying a Trajectory
         ## ^^^^^^^^^^^^^^^^^^^^^^^
         ## You can ask RViz to visualize a plan (aka trajectory) for you. But the
@@ -364,11 +316,11 @@ class MoveGroupPythonInterface(object):
         ## A `DisplayTrajectory`_ msg has two primary fields, trajectory_start and trajectory.
         ## We populate the trajectory_start with our current robot state to copy over
         ## any AttachedCollisionObjects and add our plan to the trajectory.
-        display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-        display_trajectory.trajectory_start = robot.get_current_state()
-        display_trajectory.trajectory.append(plan)
+        self.display_trajectory = moveit_msgs.msg.DisplayTrajectory()
+        self.display_trajectory.trajectory_start = self.robot.get_current_state()
+        self.display_trajectory.trajectory.append(plan)
         # Publish
-        display_trajectory_publisher.publish(display_trajectory)
+        self.display_trajectory_publisher.publish(self.display_trajectory)
 
 
     def wait_for_state_update(
@@ -416,6 +368,7 @@ class MoveGroupPythonInterface(object):
         ## Adding Objects to the Planning Scene
         ## First, we will create a box in the planning scene between the fingers:
         box_pose = geometry_msgs.msg.PoseStamped()
+        # Frame id will describe in which the frame the object will be made relative to
         box_pose.header.frame_id = frame_id
         box_pose.pose.orientation.x = orientation[0]
         box_pose.pose.orientation.y = orientation[1]
@@ -475,6 +428,7 @@ class MoveGroupPythonInterface(object):
 
 
     def get_transform(self, target_frame):
+        ## Getting the Transform from the base_link Frame to the Target Frame
         try:
             transform = self.tf_buffer.lookup_transform("base_link", target_frame, rospy.Time(0), rospy.Duration(1.0))
             return transform
@@ -484,6 +438,7 @@ class MoveGroupPythonInterface(object):
 
 
     def publish_fixed_frame(self, frame_name, target_frame, pos=[0, 0, 0], quat = [0, 0, 0, 0]):
+        # This function creates a fixed frame in the rviz environment
         tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
         transform = self.get_transform(target_frame)
         if quat[3] != 0: 
@@ -505,12 +460,11 @@ class MoveGroupPythonInterface(object):
 
     def move_relative_to_frame(self, frame_id, pos=[0, 0, 0,
              np.deg2rad(0), np.deg2rad(0), np.deg2rad(0)]):
-        
+        # This function moves the robot relative to a given frame
+        # Usefull when you want to move the robot relative to a aruco
 
         pos_quaternion = tf_conversions.transformations.quaternion_from_euler(pos[3], pos[4], pos[5])
         
-        #print("Current POSE!!!", self.move_group.get_current_pose())
-        #print("QUATONIONS POSE!!", pos_quaternion)
         pose_goal = geometry_msgs.msg.PoseStamped()
         pose_goal.header.frame_id = frame_id
         pose_goal.pose.orientation.x = pos_quaternion[0]
@@ -567,12 +521,12 @@ class MoveGroupPythonInterface(object):
         # Calling ``stop()`` ensures that there is no residual movement
         self.move_group.stop()
 
-
         # For testing:
         current_joints = self.move_group.get_current_joint_values()
         return all_close(joint_goal, current_joints, 0.01), success
 
     def frame_exists(self, frame_id):
+        # checks if a frame exists
         try: 
             self.tf_buffer.lookup_transform("base_link", frame_id, rospy.Time())
             return True 
@@ -581,6 +535,8 @@ class MoveGroupPythonInterface(object):
             
 
     def match_aruco(self, id, aruco_size, frame_name, pos=[0, 0, -0.05, 0, 0, 0]):
+        # This function tries to match a given aruco id with the saved aruco ids
+        # It will move relativ to a fixed frame to a given position
         scanlist = []
         scan_num = 0
         while len(scanlist) < 3:#Scanner flere gange fra forskellige positioner 
@@ -604,6 +560,8 @@ class MoveGroupPythonInterface(object):
               
 
     def search_aruco(self, id, aruco_size, frame_name, direction, pos=[0, 0, 0, 0, 0, 0]):
+        # This function searches for a given aruco id 
+        # by moving the robot in a given direction which is given as a list
         x = direction[0]
         y = direction[1]
         z = direction[2]
@@ -639,7 +597,7 @@ class MoveGroupPythonInterface(object):
         x = -0.02 
         y = -0.04
         pos = [0, 0, 0, 0, 0, 0]
-        # we add exits to break the loop so the program one be a background issue
+        # we add exits to break the loop so the program stops to be a background issue
         while len(self.large_list_saved) < 2:
             pos[1] = pos[1] + y
             self.plan_cartesian_path("button_frame", pos)
@@ -652,6 +610,7 @@ class MoveGroupPythonInterface(object):
             if pos[0] < -0.20: 
                 exit()
 
+        # calculate the distance between the arucos to define the board
         yLength = abs(self.large_list_saved[1].target_point.pose.position.y) - abs(self.large_list_saved[0].target_point.pose.position.y)
         xLength = abs(self.large_list_saved[2].target_point.pose.position.x) - abs(self.large_list_saved[1].target_point.pose.position.x)
         
@@ -674,7 +633,8 @@ class MoveGroupPythonInterface(object):
                     , orientation = (button_board_quat[0], button_board_quat[1], button_board_quat[2], button_board_quat[3])
                     , frame_id="button_frame")
         
-        # we know the angle between the boards are 18 degrees
+        # The angle between the boards are 18 degrees and the lengths of the boards are known
+        # The boards are calculated based on trigonometry
         imu_board_x = (button_board_width/2) + ((self.imu_board_width/2) * np.cos(np.deg2rad(18)))
         imu_board_y = (yLength + 0.04) - self.imu_board_height/2
         imu_board_z = (self.imu_board_width/2) * np.sin(np.deg2rad(18))
@@ -704,9 +664,6 @@ class MoveGroupPythonInterface(object):
                     , orientation = (secret_board_quat[0], secret_board_quat[1], secret_board_quat[2], secret_board_quat[3])
                     , frame_id="button_frame")
 
-        
-        # we know the angle between the boards are 18 degrees
-
         secret_box_x = (button_board_width/2) + ((np.sqrt(((self.secret_box_depth/2+0.01)**2)+((self.secret_board_width/2)**2))) * np.cos(((np.sin((self.secret_box_depth/2+0.01)/(self.secret_board_width/2)) + np.deg2rad(18)))))
         secret_box_y = (yLength + 0.095) - self.secret_board_height/2 - ((self.secret_board_height - self.secret_box_height)/2)
         secret_box_z = (np.sin((np.sin((self.secret_box_depth/2+0.01)/(self.secret_board_width/2)) + np.deg2rad(18)))) * (np.sqrt(((self.secret_box_depth/2+0.01)**2)+((self.secret_board_width/2)**2)))
@@ -724,7 +681,7 @@ class MoveGroupPythonInterface(object):
     
 
         boardNumber = 0
-
+        # This iterates through the board buttons and creates a button object for each button
         for i in range(3):
             for j in range(3):
                 x = j * xLength
@@ -745,6 +702,8 @@ class MoveGroupPythonInterface(object):
 
     def clickButton(self, bstring):
         self.gohome()
+        # The functions clicks the specific button based on its object position
+        # If the number is found in the given string
         for j in range(len(bstring)):
             current_id_list = []
             depth_list = []
@@ -769,9 +728,13 @@ class MoveGroupPythonInterface(object):
                     depth_median = np.median(depth_list)
                     print(depth_list)
                     print(depth_median)
+                    # The distance to the button before clicking
                     pos[1] = pos[1] + 0.05
                     self.plan_cartesian_path("button_frame", pos)
                     self.gripper_client(self.gripperClosed)
+                    # Here the distance to click the  button is changed a bit depending on where on the board 
+                    # because the board was not as stiff as it should be 
+                    # in the competition this should be changed back as the boards are metal
                     if i.boardNumber > 5:
                         pos[2] = depth_median - 0.027
                     else: 
@@ -782,6 +745,7 @@ class MoveGroupPythonInterface(object):
                     self.gohome()
 
     def buttonTask(self):
+        # The button task is seperated into two parts
         self.define_board()
         self.clickButton(self.button_string)
 
@@ -789,14 +753,13 @@ class MoveGroupPythonInterface(object):
     def imuTask(self):
         self.gripper_client(self.gripperOpen)
 
-
         # Searching for the IMU board.
         self.search_aruco(11, "large", "button_frame", direction=[-0.04, -0.02, 0, 0, -5, 0])
         
-        for objects in self.large_list_saved:#Laver et anchor point ved id 11
+        for objects in self.large_list_saved:#Creates and anchor with id 11
             if objects.ids == 11:
                 anchor = objects
-        
+        # if  found publish frame
         euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor.quat)
         anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
         
@@ -805,8 +768,6 @@ class MoveGroupPythonInterface(object):
 
         # Matching with the IMU_board and creating the frame IMU after each match
         self.match_aruco(11, "large", "IMU_board_frame", pos=[0, 0, -0.1, 0, 0, 0])
-
-        #print("DONE MATCHING!")
 
         # Searching for the IMU
         scan_table_pose = [0, 0.05, -0.22, -np.deg2rad(89), 0, 0]
@@ -834,13 +795,12 @@ class MoveGroupPythonInterface(object):
         success = False 
         while success == False: 
             allClose, success = self.gohome(gripper_state=self.gripperImuBox)
-            #print(success)
-    
 
+        # Go in front of the velcro board
         board_place_pos = [0.09, 0.17, -0.08, 0, 0, 0]
         self.move_relative_to_frame("IMU_board_frame", board_place_pos)
 
-        # Plance the imu on the velcro 
+        # Place the imu on the velcro 
         board_place_pos = [0.09, 0.17, -0.08, 0, 0, np.deg2rad(self.imu_angle)]
         self.plan_cartesian_path("IMU_board_frame", board_place_pos)
 
@@ -854,7 +814,7 @@ class MoveGroupPythonInterface(object):
         self.add_box("imu_box", size=(0.1, 0.05, 0.05), position=[0, 0, -0.01], orientation=box_orientation, frame_id="end_effector_link")
         
 
-        # Plance the imu on the velcro 
+        # Move back and go home
         board_place_pos = [0.09, 0.17, -0.1, 0, 0, np.deg2rad(self.imu_angle)]
         self.plan_cartesian_path("IMU_board_frame", board_place_pos)
 
@@ -872,7 +832,7 @@ class MoveGroupPythonInterface(object):
         for objects in self.large_list_saved:
             if objects.ids == 12:
                 anchor1 = objects
-                # The frame for the table is made'
+                # The frame for the table is made if id 12 is found
                 euler_anchor = tf_conversions.transformations.euler_from_quaternion(anchor1.quat)
                 anchor1.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
                 self.publish_fixed_frame("secret_box_frame", "base_link",  anchor1.pos, anchor1.quat)
@@ -884,6 +844,7 @@ class MoveGroupPythonInterface(object):
 
         pos = [0.0, 0.0, -0.04, 0, 0, 0]
         scanlist = []
+        # match the id 3 times as a good frame is preffered for the secret box
         while len(scanlist) < 3: 
             if self.largearuco.ids == 12: 
                 scanlist.append(self.largearuco)
@@ -894,7 +855,7 @@ class MoveGroupPythonInterface(object):
                 self.move_relative_to_frame("secret_box_frame", pos)
                 rospy.sleep(1)
 
-            # Note the frame flips because it somtimes scans another aruco but it will flip back
+            # If the object is not detected above this will catch it and make the frame
             elif any(obj.ids == 12 for obj in self.large_list_saved) and self.largearuco.ids != 12:
                 if self.frame_exists("secret_box_frame"):
                      self.move_relative_to_frame("secret_box_frame", pos)
@@ -914,7 +875,7 @@ class MoveGroupPythonInterface(object):
         scan_table_pose = [0, 0.0, -0.04, -np.deg2rad(80), 0, 0]
         self.search_aruco(14, "large", "secret_box_frame", pos=scan_table_pose, direction=[0, 0, -0.01, 0, 0, 0]) 
  
-                
+        # Make a frame when found
         for objects in self.large_list_saved:
             if objects.ids == 14:
                 anchor = objects
@@ -922,7 +883,8 @@ class MoveGroupPythonInterface(object):
                 anchor.quat = tf_conversions.transformations.quaternion_from_euler(euler_anchor[0] + np.deg2rad(180), euler_anchor[1], euler_anchor[2])
                 # The frame for the table is made
                 self.publish_fixed_frame("secret_table_frame", "base_link",  anchor.pos, anchor.quat)
-         
+        
+        # Move to the table relative to button_frame as the position is very diffecult to reach with relative to table_frame
         pos = [anchor.target_point.pose.position.x, anchor.target_point.pose.position.y - 0.1, anchor.target_point.pose.position.z - 0.1, -np.deg2rad(box_lid_angle), 0, 0]
         success = False
         while success == False: 
@@ -936,8 +898,7 @@ class MoveGroupPythonInterface(object):
             allClose, success = self.move_relative_to_frame("button_frame", pos)
             rospy.sleep(1)
             print(success)
-            #print(success)
-        print("out of loop")
+
         # We match with the secret table aruco
         match_table_pos = [0, 0.1, -0.2, np.deg2rad(40), 0, 0]
         self.match_aruco(14, "large", "secret_table_frame", pos=match_table_pos)
@@ -954,6 +915,7 @@ class MoveGroupPythonInterface(object):
             allClose, success = self.move_relative_to_frame("button_frame", pos)
             print(success)
 
+        # cartesian moves to grab the lid
         grab_lid_pose = [anchor.target_point.pose.position.x + 0.015, anchor.target_point.pose.position.y - 0.075, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         self.plan_cartesian_path("button_frame", grab_lid_pose)
 
@@ -967,6 +929,7 @@ class MoveGroupPythonInterface(object):
         grab_lid_pose = [anchor.target_point.pose.position.x + 0.015, anchor.target_point.pose.position.y - 0.15, anchor.target_point.pose.position.z + 0.05, -np.deg2rad(box_lid_angle), np.deg2rad(angle_to_box), 0]
         self.plan_cartesian_path("button_frame", grab_lid_pose)
 
+        # Save the joints for later use
         pick_up_joints = self.move_group.get_current_joint_values()
 
         # The lid is placed on the table
@@ -984,15 +947,17 @@ class MoveGroupPythonInterface(object):
         while success == False: 
             allClose, success = self.move_relative_to_frame("secret_table_frame", place_lid_pos)
 
+        # Place it two cm above the table
         place_lid_pos[2] = place_lid_pos[2] + 0.02
-
         success = False
         while success == False: 
             allClose, success = self.move_relative_to_frame("secret_table_frame", place_lid_pos)
-       
+        
+        # release and detach the lid
         self.gripper_client(self.gripperOpen)
         self.detach_box(box_name="secret_lid")
-
+        
+        # force back joints movements
         success = False
         while success == False:
             allClose, success = self.go_to_joint_state(place_lid_pos_above_joints)
@@ -1006,6 +971,7 @@ class MoveGroupPythonInterface(object):
         
         self.plan_cartesian_path("button_frame", grab_lid_pose)  
 
+        # Adds the secret id to a variable
         secret_aruco_id = self.largearuco.ids
 
         # Go back to pick up lid 
@@ -1040,10 +1006,10 @@ class MoveGroupPythonInterface(object):
 
         self.gohome()
         
+        # click the secret id
         self.clickButton(str(secret_aruco_id))
 
         self.gohome()
-
 
     def setupEnv(self):
         # define the table for no collision
@@ -1060,8 +1026,10 @@ class MoveGroupPythonInterface(object):
 
 def main():
     try:
+        # Initialize the node
         move_node = MoveGroupPythonInterface()
 
+        # Setup the environment and the tasks in the following order
         move_node.setupEnv()
 
         move_node.buttonTask()
@@ -1076,41 +1044,6 @@ def main():
         return
     except KeyboardInterrupt:
         exit()
-        return
 
 if __name__ == "__main__":
     main()
-
-## .. _moveit_commander:
-##    http://docs.ros.org/noetic/api/moveit_commander/html/namespacemoveit__commander.html
-##
-## .. _MoveGroupCommander:
-##    http://docs.ros.org/noetic/api/moveit_commander/html/classmoveit__commander_1_1move__group_1_1MoveGroupCommander.html
-##
-## .. _RobotCommander:
-##    http://docs.ros.org/noetic/api/moveit_commander/html/classmoveit__commander_1_1robot_1_1RobotCommander.html
-##
-## .. _PlanningSceneInterface:
-##    http://docs.ros.org/noetic/api/moveit_commander/html/classmoveit__commander_1_1planning__scene__interface_1_1PlanningSceneInterface.html
-##
-## .. _DisplayTrajectory:
-##    http://docs.ros.org/noetic/api/moveit_msgs/html/msg/DisplayTrajectory.html
-##
-## .. _RobotTrajectory:
-##    http://docs.ros.org/noetic/api/moveit_msgs/html/msg/RobotTrajectory.html
-##
-## .. _rospy:
-##    http://docs.ros.org/noetic/api/rospy/html/
-## imports
-## setup
-## basic_info
-## plan_to_joint_state
-## plan_to_pose
-## plan_cartesian_path
-## display_trajectory
-## execute_plan
-## add_box
-## wait_for_scene_update
-## attach_object
-## detach_object
-## remove_object

@@ -82,6 +82,7 @@ class ArucoDetectorNode:
                 corners, ids, rejected = cv2.aruco.detectMarkers(
                     gray, self.aruco_dict, parameters=self.parameters)
 
+                # Switch between small and large ArUco markers every 200 milliseconds
                 checkTime = time.time()
                 if checkTime - self.startTime >= 0.2:  # Check if 200 milliseconds have elapsed
                     if self.aruco_size == self.aruco_marker_size_small:
@@ -113,12 +114,6 @@ class ArucoDetectorNode:
                         cv2.putText(frame, f"Marker {ids[i][0]} Distance: {z_distance: .2f} meters", (10, 30 + i * 30),
                                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-                        #print("Distance", round(100*z_distance), "cm")
-                        #print("x coordinate", x_distance)
-                        #print("y coordinate", y_distance)
-
-                        #print("ID", ids[i][0])
-
                         cv2.drawFrameAxes(frame, self.mtx, self.dist, rvec[0], tvec[0], 0.1)
                         
                         # This finds the rotation matrix used to calculate
@@ -131,13 +126,11 @@ class ArucoDetectorNode:
 
                         self.point_data = [x_distance, y_distance, z_distance]
 
-
-                        # Flatten the 2D array into a 1D array
-                        #print("Rotation matrix", rotation_matrix)
                         # If the tvec contains any values it is returned
                         if tvec.any():
+                            # The points is transformed to the global coordinate system
                             transformed_point_data = self.transform_point_to_global(self.point_data, quaternion)
-                            #print("Point relative to base" ,transformed_point_data)
+                            # The markers are made with number and displayed dinamically
                             if int(ids[i][0]) in self.large_list and int(ids[i][0]) != 0 and self.aruco_type == "Large":
                                 marker_id = int(ids[i][0])
                                 self.display_marker(transformed_point_data, marker_id)
@@ -146,6 +139,7 @@ class ArucoDetectorNode:
                                 marker_id = int(ids[i][0])
                                 self.display_marker(transformed_point_data, marker_id)
 
+                            # 
                             data.position = [transformed_point_data.position.x, transformed_point_data.position.y, transformed_point_data.position.z]
                             data.ids = int(ids[i][0])
                             data.quaternion = [transformed_point_data.orientation.x,
@@ -153,8 +147,9 @@ class ArucoDetectorNode:
                                                 transformed_point_data.orientation.z,
                                                 transformed_point_data.orientation.w]
                             data.aruco_type = self.aruco_type
+                            # The data is published with the costume made file
                             self.aruco_data_pub.publish(data)
-                # return 0 values of the arucos are not found
+                # return 0 values if the arucos are not found
                 else:
                     x_distance, y_distance, z_distance, ids = 0, 0, 0, 0
                     data.position = [x_distance, y_distance, z_distance]
@@ -186,7 +181,6 @@ class ArucoDetectorNode:
         point_in_frame.pose.orientation.y = quatanion[1]
         point_in_frame.pose.orientation.z = quatanion[2]
         
-
         try: 
             # Get the transformation between base and end_effector
             transform = self.tf_buffer.lookup_transform("base_link", "camera_frame", rospy.Time(0))
