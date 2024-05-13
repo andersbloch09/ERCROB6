@@ -4,7 +4,7 @@
 - Scipy
 - Opencv-contrib-python 
 - tf2_ros 
-- transforms3d
+- transforms3d\
 - Moveit, ROS Noetic 
 - UR_drivers, ROS Noetic
 
@@ -16,3 +16,5 @@ To launch go into src folder of workspace and the following line remember to cha
 ```bash
 rosrun newur urmove.py
 ```
+
+# The main script can be found in the package newur. 
