@@ -16,3 +16,5 @@ To launch go into src folder of workspace and the following line remember to cha
 ```bash
 rosrun waypoint_test test.py
 ```
+
+## Branch is for a waypoint test
